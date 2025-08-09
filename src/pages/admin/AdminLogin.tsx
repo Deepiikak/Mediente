@@ -16,6 +16,7 @@ import {
   Flex
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
+import './AdminLogin.css';
 import { notifications } from '@mantine/notifications';
 import { IconAlertCircle, IconCheck, IconEye, IconEyeOff } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
@@ -30,7 +31,6 @@ export default function AdminLogin({}: AdminLoginProps) {
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
   const navigate = useNavigate();
-
   const loginForm = useForm<LoginCredentials>({
     initialValues: {
       email: '',
@@ -38,13 +38,13 @@ export default function AdminLogin({}: AdminLoginProps) {
     },
     validate: {
       email: (value) => {
-        if (!value) return 'Email is required';
-        if (!/^\S+@\S+$/.test(value)) return 'Invalid email format';
+        if (!value) return 'Invalid login credential';
+        if (!/^\S+@\S+$/.test(value)) return 'Invalid login credential';
         return null;
       },
       password: (value) => {
-        if (!value) return 'Password is required';
-        if (value.length < 8) return 'Password must be at least 8 characters';
+        if (!value) return 'Invalid login credential';
+        if (value.length < 8) return 'Invalid login credential';
         return null;
       },
     },
@@ -75,6 +75,8 @@ export default function AdminLogin({}: AdminLoginProps) {
     }
 
     setIsLoading(true);
+    // Clear any previous inline field errors before a new attempt
+    loginForm.setErrors({});
 
     try {
       // Check failed attempts before login
@@ -107,12 +109,9 @@ export default function AdminLogin({}: AdminLoginProps) {
             icon: <IconAlertCircle />,
           });
         } else {
-          notifications.show({
-            title: 'Login Failed',
-            message: response.error,
-            color: 'red',
-            icon: <IconAlertCircle />,
-          });
+          // Show inline error on both fields to match the design
+          const inlineErrorMessage = 'email or password is invalid please try again!';
+          loginForm.setErrors({ email: inlineErrorMessage, password: inlineErrorMessage });
         }
         
         if (failedAttempts >= 2) {
@@ -129,6 +128,8 @@ export default function AdminLogin({}: AdminLoginProps) {
 
         // Redirect to admin dashboard
         navigate('/admin/dashboard');
+        // Clear any lingering errors on success
+        loginForm.setErrors({});
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -184,7 +185,8 @@ export default function AdminLogin({}: AdminLoginProps) {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '10px'
+      padding: '10px',
+      
     }}>
       {/* Background Header */}
       <Box 
@@ -201,19 +203,23 @@ export default function AdminLogin({}: AdminLoginProps) {
       >
         <Group p="sm" gap="md">
          
-          <Title order={1} c="white" ta="center" fw={700} size="2rem">
+          <Title order={1} c="white" ta="center" fw={700} size="1rem" style={{
+            fontFamily: "Poppins",
+            fontSize: "1.2rem",
+            marginLeft: "10px"
+          }}>
             MEDIENTE
           </Title>
    
         </Group>
       </Box>
 
-      <Container size="lg" mt={60}>
+      <Container size="xl" mt={60}>
         <Flex
           direction={{ base: 'column', md: 'row' }}
-          gap={{ base: 'md', md: 'md' }}
+          gap="xl"
           align="center"
-          justify="center"
+          justify="space-between"
         >
         {/* Left side - Illustration/Image section */}
         <Box 
@@ -221,93 +227,181 @@ export default function AdminLogin({}: AdminLoginProps) {
           display={{ base: 'none', md: 'flex' }}
           style={{ justifyContent: 'center', alignItems: 'center' }}
         >
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.1)',
-            borderRadius: '20px',
-            padding: '40px',
-            textAlign: 'center',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.2)'
-          }}>
-            {/* Film Production themed illustration */}
+          {!showForgotPassword ? (
             <div style={{
-              width: '200px',
-              height: '200px',
-              background: 'linear-gradient(135deg, #ff6b6b 0%, #feca57 100%)',
+              background: 'rgba(255, 255, 255, 0.1)',
               borderRadius: '20px',
-              margin: '0 auto 20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '60px',
-              position: 'relative',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+              padding: '40px',
+              textAlign: 'center',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 255, 255, 0.2)'
             }}>
-              🎬
-              {/* Film strip decoration */}
+              {/* Film Production themed illustration */}
               <div style={{
-                position: 'absolute',
-                top: '-10px',
-                right: '-10px',
-                background: '#2c2c2c',
-                borderRadius: '8px',
-                padding: '4px 8px',
-                fontSize: '20px'
-              }}>🎞️</div>
-            </div>
-            
-            {/* Film production team representation */}
-            <Group justify="center" gap="md" mb="lg">
-              <div style={{
-                width: '50px',
-                height: '50px',
-                background: '#e74c3c',
-                borderRadius: '12px',
+                width: '200px',
+                height: '200px',
+                background: 'linear-gradient(135deg,rgb(107, 147, 255) 0%,rgb(255, 236, 87) 100%)',
+                borderRadius: '20px',
+                margin: '0 auto 20px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'white',
-                fontSize: '20px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-              }}>🎥</div>
-              <div style={{
-                width: '50px',
-                height: '50px',
-                background: '#9b59b6',
-                borderRadius: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontSize: '20px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-              }}>🎭</div>
-              <div style={{
-                width: '50px',
-                height: '50px',
-                background: '#f39c12',
-                borderRadius: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontSize: '20px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-              }}>🎪</div>
-            </Group>
+                fontSize: '60px',
+                position: 'relative',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+              }}>
+                🎬
+                {/* Film strip decoration */}
+                <div style={{
+                  position: 'absolute',
+                  top: '-10px',
+                  right: '-10px',
+                  background: '#2c2c2c',
+                  borderRadius: '8px',
+                  padding: '4px 8px',
+                  fontSize: '20px'
+                }}>🎞️</div>
+              </div>
+              
+              {/* Film production team representation */}
+              <Group justify="center" gap="md" mb="lg">
+                <div style={{
+                  width: '50px',
+                  height: '50px',
+                  background: '#e74c3c',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: '20px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                }}>🎥</div>
+                <div style={{
+                  width: '50px',
+                  height: '50px',
+                  background: '#9b59b6',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: '20px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                }}>🎭</div>
+                <div style={{
+                  width: '50px',
+                  height: '50px',
+                  background: '#f39c12',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: '20px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                }}>🎪</div>
+              </Group>
 
-            <Text c="white" size="lg" fw={600} mb="xs">
-              Film Production Management
-            </Text>
-            <Text c="rgba(255,255,255,0.8)" size="sm">
-              Bringing Stories to Life
-            </Text>
-          </div>
+              <Text c="white" size="lg" fw={600} mb="xs">
+                Film Production Management
+              </Text>
+              <Text c="rgba(255,255,255,0.8)" size="sm">
+                Bringing Stories to Life
+              </Text>
+            </div>
+          ) : (
+            // Password recovery themed illustration
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.1)',
+              borderRadius: '20px',
+              padding: '40px',
+              textAlign: 'center',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 255, 255, 0.2)'
+            }}>
+              <div style={{
+                width: '220px',
+                height: '220px',
+                background: 'linear-gradient(135deg, #69b7ff 0%, #3f51b5 100%)',
+                borderRadius: '50%',
+                margin: '0 auto 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '64px',
+                position: 'relative',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.25)'
+              }}>
+                📧
+                <div style={{
+                  position: 'absolute',
+                  bottom: '-8px',
+                  right: '18px',
+                  background: 'white',
+                  borderRadius: '50%',
+                  width: '46px',
+                  height: '46px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
+                  fontSize: '26px'
+                }}>🔒</div>
+              </div>
+
+              <Group justify="center" gap="md" mb="lg">
+                <div style={{
+                  width: '48px',
+                  height: '48px',
+                  background: '#42a5f5',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: '22px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                }}>👤</div>
+                <div style={{
+                  width: '48px',
+                  height: '48px',
+                  background: '#26c6da',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: '22px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                }}>💬</div>
+                <div style={{
+                  width: '48px',
+                  height: '48px',
+                  background: '#66bb6a',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: '22px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                }}>🔑</div>
+              </Group>
+
+              <Text c="white" size="lg" fw={600} mb="xs">
+                Recover Your Password
+              </Text>
+              <Text c="rgba(54, 38, 38, 0.85)" size="sm">
+                We will send you a secure reset link
+              </Text>
+            </div>
+          )}
         </Box>
 
         {/* Right side - Login form */}
-        <Box flex={1} maw={400} w="100%">
-          <Paper shadow="xl" p="xl" radius="lg" style={{ 
+        <Box flex={1} maw={500} w="100%" h="100%">
+          <Paper shadow="xl" p="xl"  className="loginPaper" style={{ 
             position: 'relative',
             background: 'rgba(255, 255, 255, 0.95)',
             backdropFilter: 'blur(10px)'
@@ -317,50 +411,64 @@ export default function AdminLogin({}: AdminLoginProps) {
           <Stack gap="lg">
             {/* Header */}
             <Box ta="center">
-              <Title order={2} size="h3" fw={700} c="black" mb="xs">
-                 <span style={{color: '#2196f3'}}>Welcome </span>to Mediente Admin Dashboard 🚀
-              </Title>
-              <Text c="dimmed" size="sm" mt="sm" ta="end">
-                Sign in to your account
-              </Text>
+              {!showForgotPassword ? (
+                <>
+                  <Title order={2} size="h3" fw={700} c="black" mb="xs">
+                    <span style={{color: '#2196f3'}}>Welcome </span>to Mediente Admin Dashboard 🚀
+                  </Title>
+                  <Text c="dimmed" size="sm" mt="sm" ta="end">
+                    Sign in to your account
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Title order={2} size="h3" fw={700} c="black" mb="xs">
+                    Recover Your <span style={{color: '#2196f3'}}>password</span>
+                  </Title>
+                </>
+              )}
             </Box>
 
-          {/* Failed attempts warning */}
-          {failedAttempts > 0 && failedAttempts < 3 && (
-            <Alert 
-              icon={<IconAlertCircle />} 
-              color="yellow" 
-              title="Login Attempt Warning"
-            >
-              {failedAttempts} failed attempt(s). {3 - failedAttempts} attempt(s) remaining.
-            </Alert>
-          )}
+          {/* Failed attempts warning / Blocked alert only for Login page */}
+          {!showForgotPassword && (
+            <>
+              {failedAttempts > 0 && failedAttempts < 3 && (
+                <Alert 
+                  icon={<IconAlertCircle />} 
+                  color="yellow" 
+                  title="Login Attempt Warning"
+                >
+                  {failedAttempts} failed attempt(s). {3 - failedAttempts} attempt(s) remaining.
+                </Alert>
+              )}
 
-          {/* Blocked account alert */}
-          {isBlocked && (
-            <Alert 
-              icon={<IconAlertCircle />} 
-              color="red" 
-              title="Account Temporarily Blocked"
-            >
-              Too many failed attempts. Please reset your password.
-            </Alert>
+              {isBlocked && (
+                <Alert 
+                  icon={<IconAlertCircle />} 
+                  color="red" 
+                  title="Account Temporarily Blocked"
+                >
+                  Too many failed attempts. Please reset your password.
+                </Alert>
+              )}
+            </>
           )}
 
           {!showForgotPassword ? (
             /* Login Form */
             <form onSubmit={loginForm.onSubmit(handleLogin)}>
               <Stack gap="md">
-                <TextInput
-                  label="What is your e-mail?"
+               
+                <TextInput radius="lg"
+                  
                   placeholder="Enter your email"
                   leftSection={<Text size="sm">📧</Text>}
                   {...loginForm.getInputProps('email')}
                   disabled={isLoading}
                 />
 
-                <PasswordInput
-                  label="Enter your password"
+                <PasswordInput radius="lg"
+                  
                   placeholder="Enter your password"
                   leftSection={<Text size="sm">🔒</Text>}
                   visibilityToggleIcon={({ reveal }) =>
@@ -369,8 +477,13 @@ export default function AdminLogin({}: AdminLoginProps) {
                   {...loginForm.getInputProps('password')}
                   disabled={isLoading}
                 />
+                {Object.keys(loginForm.errors).length > 0 && (
+                  <Text c="red" fw={700}  size="sm">
+                    Email or password is invalid please try again!
+                  </Text>
+                )}
 
-                <Button 
+                <Button radius="lg"
                   type="submit" 
                   fullWidth 
                   size="md"
@@ -400,43 +513,70 @@ export default function AdminLogin({}: AdminLoginProps) {
                     </Anchor>
                   </Text>
                 </Group>
+
               </Stack>
             </form>
           ) : (
             /* Reset Password Form */
             <form onSubmit={resetForm.onSubmit(handleForgotPassword)}>
-              <Stack gap="md">
-                <Title order={3} ta="center">Reset Password</Title>
-                <Text size="sm" c="dimmed" ta="center">
-                  Enter your email address and we'll send you a reset link
-                </Text>
+            <Stack gap="md" style={{
+    height: "400px",
+    width: "350px", // enlarge container
+    padding: "1.5rem", 
+    borderRadius: "8px"
+  }}
+  justify="space-between">
+              <Group>
+              <Text size="sm" c="dimmed" ta="center">
+                Enter your email address and we'll send you a reset link
+              </Text>
+              <br/>
+              <br/>
+<Group justify="center">
+              <TextInput radius="lg"
+              size="sm" 
+              style={{
+                width: "300px", 
+              
 
-                <TextInput
-                  label="Email Address"
-                  placeholder="Enter your email"
-                  leftSection={<Text size="sm">📧</Text>}
-                  {...resetForm.getInputProps('email')}
+              }}
+                label="Email Address"
+                placeholder="Enter your email"
+                leftSection={<Text size="sm">📧</Text>}
+                {...resetForm.getInputProps('email')}
+                disabled={isLoading}
+              />
+
+              
+                
+                <Button 
+                  type="submit"
+                  fullWidth
+                  radius="lg"
+                  size="md"
                   disabled={isLoading}
-                />
-
-                <Group grow>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setShowForgotPassword(false)}
-                    disabled={isLoading}
-                  >
-                    Back to Login
-                  </Button>
-                  <Button 
-                    type="submit"
-                    disabled={isLoading}
-                    loading={isLoading}
-                  >
-                    Send Reset Link
-                  </Button>
+                  loading={isLoading}
+                >
+                  Send Reset Link
+                </Button>
+               
                 </Group>
-              </Stack>
-            </form>
+                </Group>
+              
+                <Text size="sm" c="dimmed" ta="center">
+                  Unable to Log in?{' '}
+                  <Anchor 
+                    size="sm" 
+                    onClick={() => setShowForgotPassword(true)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    Reset Password
+                  </Anchor>
+                </Text>
+              
+            </Stack>
+          </form>
+          
           )}
 
         
