@@ -11,7 +11,7 @@ import '@mantine/notifications/styles.css';
 
 function App() {
   return (
-    <MantineProvider defaultColorScheme="light">
+    <MantineProvider forceColorScheme="light" theme={{defaultRadius:"lg"}}>
       <Notifications />
       <AuthProvider>
         <Router>
