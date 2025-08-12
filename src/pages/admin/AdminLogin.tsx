@@ -25,10 +25,12 @@ import {
   IconLock,
   IconMail,
 } from "@tabler/icons-react";
-import { useNavigate } from "react-router-dom";
-import authService from "../../services/authService";
-import type { LoginCredentials } from "../../types/auth";
 import MedienteLogo from "../../assets/Mediente-Logo.png"
+
+import './AdminLogin.css';
+import { useNavigate } from 'react-router-dom';
+import authService from '../../services/authService';
+import type { LoginCredentials } from '../../types/auth';
 
 export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
@@ -36,7 +38,6 @@ export default function AdminLogin() {
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
   const navigate = useNavigate();
-
   const loginForm = useForm<LoginCredentials>({
     initialValues: {
       email: "",
@@ -81,6 +82,8 @@ export default function AdminLogin() {
     }
 
     setIsLoading(true);
+    // Clear any previous inline field errors before a new attempt
+    loginForm.setErrors({});
 
     try {
       // Check failed attempts before login
@@ -134,7 +137,9 @@ export default function AdminLogin() {
         });
 
         // Redirect to admin dashboard
-        navigate("/admin/dashboard");
+        navigate('/admin/dashboard');
+        // Clear any lingering errors on success
+        loginForm.setErrors({});
       }
     } catch (error) {
       console.error("Login error:", error);
@@ -212,12 +217,12 @@ export default function AdminLogin() {
         </Group>
       </Box>
 
-      <Container size="lg" mt={60}>
+      <Container size="xl" mt={60}>
         <Flex
           direction={{ base: "column", md: "row" }}
           gap={{ base: "md", md: "md" }}
           align="center"
-          justify="center"
+          justify="space-between"
         >
           {/* Left side - Illustration/Image section */}
           <Box
@@ -229,104 +234,39 @@ export default function AdminLogin() {
               style={{
                 background: "rgba(255, 255, 255, 0.1)",
                 borderRadius: "20px",
-                padding: "40px",
+                padding: "0",
                 textAlign: "center",
                 backdropFilter: "blur(10px)",
                 border: "1px solid rgba(255, 255, 255, 0.2)",
+                overflow: "hidden",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                position: "relative",
+                minHeight: "340px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "flex-end",
               }}
             >
-              {/* Film Production themed illustration */}
-              <div
+              <img
+                src="https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=600&q=80"
+                alt="Movie production"
                 style={{
-                  width: "200px",
-                  height: "200px",
-                  background:
-                    "linear-gradient(135deg, #ff6b6b 0%, #feca57 100%)",
-                  borderRadius: "20px",
-                  margin: "0 auto 20px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "60px",
-                  position: "relative",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                  width: "100%",
+                  height: "240px",
+                  objectFit: "cover",
+                  display: "block",
+                  borderTopLeftRadius: "20px",
+                  borderTopRightRadius: "20px",
                 }}
-              >
-                🎬
-                {/* Film strip decoration */}
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "-10px",
-                    right: "-10px",
-                    background: "#2c2c2c",
-                    borderRadius: "8px",
-                    padding: "4px 8px",
-                    fontSize: "20px",
-                  }}
-                >
-                  🎞️
-                </div>
+              />
+              <div style={{ padding: "32px 24px 24px 24px" }}>
+                <Text c="white" size="lg" fw={600} mb="xs" style={{ textShadow: "0 2px 8px rgba(0,0,0,0.5)" }}>
+                  Film Production Management
+                </Text>
+                <Text c="rgba(255,255,255,0.8)" size="sm" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.4)" }}>
+                  Bringing Stories to Life
+                </Text>
               </div>
-
-              {/* Film production team representation */}
-              <Group justify="center" gap="md" mb="lg">
-                <div
-                  style={{
-                    width: "50px",
-                    height: "50px",
-                    background: "#e74c3c",
-                    borderRadius: "12px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "white",
-                    fontSize: "20px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-                  }}
-                >
-                  🎥
-                </div>
-                <div
-                  style={{
-                    width: "50px",
-                    height: "50px",
-                    background: "#9b59b6",
-                    borderRadius: "12px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "white",
-                    fontSize: "20px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-                  }}
-                >
-                  🎭
-                </div>
-                <div
-                  style={{
-                    width: "50px",
-                    height: "50px",
-                    background: "#f39c12",
-                    borderRadius: "12px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "white",
-                    fontSize: "20px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-                  }}
-                >
-                  🎪
-                </div>
-              </Group>
-
-              <Text c="white" size="lg" fw={600} mb="xs">
-                Film Production Management
-              </Text>
-              <Text c="rgba(255,255,255,0.8)" size="sm">
-                Bringing Stories to Life
-              </Text>
             </div>
           </Box>
 
