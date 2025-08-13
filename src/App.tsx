@@ -4,6 +4,7 @@ import { Notifications } from '@mantine/notifications';
 import { AuthProvider } from './hooks/useAuth';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminUserManagement from './pages/admin/AdminUserManagement';
 
 // Import Mantine styles
 import '@mantine/core/styles.css';
@@ -22,6 +23,7 @@ function App() {
             {/* Admin routes */}
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/users" element={<AdminUserManagement />} />
             
             {/* Catch all route */}
             <Route path="*" element={<Navigate to="/admin/login" replace />} />

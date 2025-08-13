@@ -453,9 +453,17 @@ export default function AdminLogin({}: AdminLoginProps) {
               )}
             </>
           )}
-
+         
           {!showForgotPassword ? (
+            
             /* Login Form */
+            <Box flex={1} maw={500} w="100%" h="100%">
+            <Paper shadow="xl" p="xl"  className="loginPaper" style={{ 
+              position: 'relative',
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(10px)'
+            }}></Paper>
+
             <form onSubmit={loginForm.onSubmit(handleLogin)}>
               <Stack gap="md">
                
@@ -516,7 +524,9 @@ export default function AdminLogin({}: AdminLoginProps) {
 
               </Stack>
             </form>
-          ) : (
+            </Box>
+          ) : 
+          (
             /* Reset Password Form */
             <form onSubmit={resetForm.onSubmit(handleForgotPassword)}>
             <Stack gap="md" style={{

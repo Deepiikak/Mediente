@@ -138,7 +138,7 @@ export default function AdminDashboard() {
         />
         
         <NavLink
-          href="#"
+          href="/admin/users"
           label="User Management"
           leftSection={<IconUsers size="1rem" />}
         />
@@ -241,7 +241,7 @@ export default function AdminDashboard() {
             </Text>
             
             <Group>
-              <Button leftSection={<Text size="sm">🎭</Text>} color="red">
+              <Button leftSection={<Text size="sm">🎭</Text>} color="red" component="a" href="/admin/users">
                 Manage Cast & Crew
               </Button>
               <Button variant="outline" leftSection={<Text size="sm">🎥</Text>} color="orange">
