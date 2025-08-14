@@ -13,7 +13,6 @@ import {
   Anchor,
   Group,
   Box,
-  Flex,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
@@ -25,12 +24,12 @@ import {
   IconLock,
   IconMail,
 } from "@tabler/icons-react";
-import MedienteLogo from "../../assets/Mediente-Logo.png"
-import LandingImage from "../../assets/landing.jpg"
-import './AdminLogin.css';
-import { useNavigate } from 'react-router-dom';
-import authService from '../../services/authService';
-import type { LoginCredentials } from '../../types/auth';
+import MedienteLogo from "../../assets/Mediente-Logo.png";
+import LandingImage from "../../assets/landing.jpg";
+import "./AdminLogin.css";
+import { useNavigate } from "react-router-dom";
+import authService from "../../services/authService";
+import type { LoginCredentials } from "../../types/auth";
 
 export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
@@ -137,12 +136,12 @@ export default function AdminLogin() {
         });
 
         // Redirect to admin dashboard
-        navigate('/admin/dashboard');
+        navigate("/admin/dashboard");
         // Clear any lingering errors on success
         loginForm.setErrors({});
       }
-    } catch (error) {
-      console.error("Login error:", error);
+    } catch (err) {
+      console.error("Login error:", err);
       notifications.show({
         title: "Error",
         message: "An unexpected error occurred. Please try again.",
@@ -176,7 +175,8 @@ export default function AdminLogin() {
           icon: <IconAlertCircle />,
         });
       }
-    } catch (error) {
+    } catch (err) {
+      console.error("Reset password error:", err);
       notifications.show({
         title: "Error",
         message: "Failed to send reset email. Please try again.",
@@ -187,81 +187,57 @@ export default function AdminLogin() {
       setIsLoading(false);
     }
   };
-  
+
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-2.5">
+    <div className="min-h-screen bg-gradient-to-br flex items-center justify-center p-4">
       {/* Background Header */}
-      <Box className="fixed top-0 left-0 right-0 bg-blue-500 p-px z-10 shadow-lg">
-        <Group p="sm" gap="md">
-         <img src={MedienteLogo} alt="" />
+      <Box className="fixed top-0 left-0 right-0  z-10 shadow-lg">
+        <Group p="sm" gap="md" bg={"blue.6"}>
+          <img src={MedienteLogo} alt="Mediente Logo" className="h-8" />
         </Group>
       </Box>
 
-      <Container size="xl" mt={60}>
-        <Flex
-          direction={{ base: "column", md: "row" }}
-          gap={{ base: "md", md: "md" }}
-          align="center"
-          justify="space-between"
-        >
+     <Container size="xl" mt={80} className="w-full max-w-6xl"> 
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center min-h-[600px] w-full ">
           {/* Left side - Illustration/Image section */}
-          <Box
-            flex={1}
-            display={{ base: "none", md: "flex" }}
-            className="justify-center items-center"
-          >
-            <div className="bg-white/10 rounded-3xl p-0 text-center backdrop-blur-sm border border-white/20 overflow-hidden shadow-2xl relative min-h-[340px] flex flex-col justify-end">
-              <img
-                src={LandingImage}
-                alt="Movie production"
-                className="w-full h-60 object-cover block rounded-t-3xl"
-              />
-              <div className="px-6 pt-8 pb-6">
-                <Text c="white" size="lg" fw={600} mb="xs" className="drop-shadow-lg">
-                  Film Production Management
-                </Text>
-                <Text c="rgba(255,255,255,0.8)" size="sm" className="drop-shadow-sm">
-                  Bringing Stories to Life
-                </Text>
+         
+          <div>
+            <div className="rounded-3xl p-8 text-center relative overflow-hidden ">
+              <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
+              <div className="relative z-10">
+                <img
+                  src={LandingImage}
+                  alt="Movie production"
+                  className="w-full max-h-96 object-cover rounded-2xl mx-auto mb-6 shadow-lg"
+                  // style={{width:500}}
+                />
+               
               </div>
             </div>
-          </Box>
+          </div>
 
           {/* Right side - Login form */}
-          <Box flex={1} maw={400} w="100%">
+          <div>
             <Paper
-              shadow="xl"
               p="xl"
               radius="lg"
-              className="relative bg-white/95 backdrop-blur-sm"
+              maw={500}
+              mih={500}
+              mx="auto"
+              className="relative bg-white/95 backdrop-blur-sm border border-white/20"
             >
               <LoadingOverlay visible={isLoading} />
 
               <Stack gap="lg">
                 {/* Header */}
                 <Box ta="center">
-                  <Title order={2} size="h3" fw={700} c="black" mb="xs">
-                    <span className="text-blue-500">Welcome </span>to
-                    Mediente Admin Dashboard 🚀
+                  <Title order={1}  fw={700} c="dark.9" mb="xl">
+                    <span className="text-blue-500">Welcome </span>to Mediente
+                    <br />
+                    <span className="text-gray-600 text-lg">Admin Dashboard 🚀</span>
                   </Title>
-                  {/* <Text c="dimmed" size="sm" mt="sm" ta="end">
-                Sign in to your account
-              </Text> */}
                 </Box>
 
-                {/* Failed attempts warning */}
-                {failedAttempts > 0 && failedAttempts < 3 && (
-                  <Alert
-                    icon={<IconAlertCircle />}
-                    color="yellow"
-                    title="Login Attempt Warning"
-                  >
-                    {failedAttempts} failed attempt(s). {3 - failedAttempts}{" "}
-                    attempt(s) remaining.
-                  </Alert>
-                )}
-
-                {/* Blocked account alert */}
                 {isBlocked && (
                   <Alert
                     icon={<IconAlertCircle />}
@@ -277,17 +253,16 @@ export default function AdminLogin() {
                   <form onSubmit={loginForm.onSubmit(handleLogin)}>
                     <Stack gap="md">
                       <TextInput
-                        // label="What is your e-mail?"
                         placeholder="What is your e-mail?"
-                        leftSection={<IconMail />}
+                        leftSection={<IconMail size={18} />}
                         {...loginForm.getInputProps("email")}
                         disabled={isLoading}
+                        size="md"
                       />
 
                       <PasswordInput
-                        // label="Enter your password"
                         placeholder="Enter your password"
-                        leftSection={<IconLock />}
+                        leftSection={<IconLock size={18} />}
                         visibilityToggleIcon={({ reveal }) =>
                           reveal ? (
                             <IconEyeOff size={18} />
@@ -297,6 +272,7 @@ export default function AdminLogin() {
                         }
                         {...loginForm.getInputProps("password")}
                         disabled={isLoading}
+                        size="md"
                       />
 
                       <Button
@@ -305,17 +281,10 @@ export default function AdminLogin() {
                         size="md"
                         disabled={isLoading || isBlocked}
                         loading={isLoading}
+                        className="bg-blue-600 hover:bg-blue-700"
                       >
                         Continue
                       </Button>
-
-                      <Group justify="space-between" mt="xs">
-                        <Text size="sm" c="dimmed">
-                          By continuing you agree to our{" "}
-                          <Anchor size="sm">Terms & Conditions</Anchor> and{" "}
-                          <Anchor size="sm">Privacy Policy</Anchor>
-                        </Text>
-                      </Group>
 
                       <Group justify="center" mt="md">
                         <Text size="sm" c="dimmed">
@@ -323,7 +292,7 @@ export default function AdminLogin() {
                           <Anchor
                             size="sm"
                             onClick={() => setShowForgotPassword(true)}
-                            className="cursor-pointer"
+                            className="cursor-pointer text-blue-600 hover:text-blue-700"
                           >
                             Reset Password
                           </Anchor>
@@ -335,7 +304,7 @@ export default function AdminLogin() {
                   /* Reset Password Form */
                   <form onSubmit={resetForm.onSubmit(handleForgotPassword)}>
                     <Stack gap="md">
-                      <Title order={3} ta="center">
+                      <Title order={3} ta="center" c="dark">
                         Reset Password
                       </Title>
                       <Text size="sm" c="dimmed" ta="center">
@@ -345,9 +314,10 @@ export default function AdminLogin() {
                       <TextInput
                         label="Email Address"
                         placeholder="Enter your email"
-                        leftSection={<Text size="sm">📧</Text>}
+                        leftSection={<IconMail size={18} />}
                         {...resetForm.getInputProps("email")}
                         disabled={isLoading}
+                        size="md"
                       />
 
                       <Group grow>
@@ -355,6 +325,7 @@ export default function AdminLogin() {
                           variant="outline"
                           onClick={() => setShowForgotPassword(false)}
                           disabled={isLoading}
+                          size="md"
                         >
                           Back to Login
                         </Button>
@@ -362,6 +333,8 @@ export default function AdminLogin() {
                           type="submit"
                           disabled={isLoading}
                           loading={isLoading}
+                          size="md"
+                          className="bg-blue-600 hover:bg-blue-700"
                         >
                           Send Reset Link
                         </Button>
@@ -371,9 +344,9 @@ export default function AdminLogin() {
                 )}
               </Stack>
             </Paper>
-          </Box>
-        </Flex>
-      </Container>
+          </div>
+        </div>
+     </Container>
     </div>
   );
 }

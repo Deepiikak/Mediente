@@ -4,14 +4,20 @@ import { Notifications } from '@mantine/notifications';
 import { AuthProvider } from './hooks/useAuth';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
-
+import AdminUserManagement from './pages/admin/AdminUserManagement';
+import AdminProjects from './pages/admin/AdminProjects';
+import AdminTeams from './pages/admin/AdminTeams';
+import AdminCrew from './pages/admin/AdminCrew';
+import AdminTemplate from './pages/admin/AdminTemplate';
+import './App.css'
 // Import Mantine styles
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
+import AdminLayout from './components/AdminLayout';
 
 function App() {
   return (
-    <MantineProvider forceColorScheme="light" theme={{defaultRadius:"lg"}}>
+    <MantineProvider>
       <Notifications />
       <AuthProvider>
         <Router>
@@ -21,8 +27,19 @@ function App() {
             
             {/* Admin routes */}
             <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="users" element={<AdminUserManagement />} />
+              <Route path="projects" element={<AdminProjects />} />
+              <Route path="teams" element={<AdminTeams />} />
+              <Route path="crew" element={<AdminCrew />} />
+              <Route path="templates" element={<AdminTemplate />} />
+              
+              {/* Other navigation routes - redirect to dashboard for now */}
+              <Route path="calendar" element={<Navigate to="/admin/dashboard" replace />} />
+              <Route path="departments" element={<Navigate to="/admin/dashboard" replace />} />
+              <Route path="settings" element={<Navigate to="/admin/dashboard" replace />} />
+            </Route>
             {/* Catch all route */}
             <Route path="*" element={<Navigate to="/admin/login" replace />} />
           </Routes>

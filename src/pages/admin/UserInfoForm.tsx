@@ -15,10 +15,7 @@ import {
   Modal,
   Table,
   Pagination,
-  SearchInput,
   Switch,
-  Divider,
-  Alert,
   LoadingOverlay,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -476,7 +473,7 @@ export default function UserInfoForm() {
 
       {/* Search and Filters */}
       <Group mb="lg">
-        <SearchInput
+        <TextInput
           placeholder="Search users..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
