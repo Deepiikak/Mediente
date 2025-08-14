@@ -20,16 +20,12 @@ import {
   Select,
   Flex,
   Box,
-  AppShell,
-  Burger,
-  NavLink,
-  Avatar,
-  Menu
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconAlertCircle, IconRefresh, IconUsers, IconUserCheck, IconUserX, IconUserOff, IconSearch, IconEdit, IconTrash, IconArchive, IconDashboard, IconSettings, IconLogout, IconUser, IconChevronDown } from '@tabler/icons-react';
+import { IconAlertCircle, IconRefresh, IconUsers, IconUserCheck, IconUserX, IconUserOff, IconSearch, IconEdit, IconTrash, IconArchive } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
+import AdminLayout from '../../components/AdminLayout';
 import userService from '../../services/userService';
 import authService from '../../services/authService';
 import type { User } from '../../types/userManagement';
@@ -38,7 +34,6 @@ import UserFormModal from '../../components/UserFormModal';
 import ConfirmationDialog from '../../components/ConfirmationDialog';
 
 export default function AdminUserManagement() {
-  const [opened, { toggle }] = useDisclosure();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [adminUser, setAdminUser] = useState<AuthAdminUser | null>(null);
@@ -192,24 +187,6 @@ export default function AdminUserManagement() {
     loadData();
   };
 
-  const handleLogout = async () => {
-    try {
-      await authService.logout();
-      notifications.show({
-        title: 'Logged Out',
-        message: 'You have been successfully logged out.',
-        color: 'blue',
-      });
-      navigate('/admin/login');
-    } catch (error) {
-      notifications.show({
-        title: 'Logout Error',
-        message: 'Failed to logout. Please try again.',
-        color: 'red',
-      });
-    }
-  };
-
   // Calculate statistics
   const stats = {
     totalUsers: users.length,
@@ -231,331 +208,266 @@ export default function AdminUserManagement() {
 
   if (isLoading) {
     return (
-      <Container size="xl" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <LoadingOverlay visible={true} />
-      </Container>
+      <AdminLayout>
+        <Container size="xl" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <LoadingOverlay visible={true} />
+        </Container>
+      </AdminLayout>
     );
   }
 
   if (error) {
     return (
-      <Container size="xl" py="xl">
-        <Alert
-          icon={<IconAlertCircle size={16} />}
-          title="Error Loading Data"
-          color="red"
-          mb="lg"
-        >
-          {error}
-        </Alert>
-        <Button onClick={handleRefresh} leftSection={<IconRefresh size={16} />}>
-          Try Again
-        </Button>
-      </Container>
+      <AdminLayout>
+        <Container size="xl" py="xl">
+          <Alert
+            icon={<IconAlertCircle size={16} />}
+            title="Error Loading Data"
+            color="red"
+            mb="lg"
+          >
+            {error}
+          </Alert>
+          <Button onClick={handleRefresh} leftSection={<IconRefresh size={16} />}>
+            Try Again
+          </Button>
+        </Container>
+      </AdminLayout>
     );
   }
 
   if (!adminUser) {
     return (
-      <Container size="xl" py="xl">
-        <Alert
-          icon={<IconAlertCircle size={16} />}
-          title="Access Denied"
-          color="red"
-        >
-          You don't have permission to access this page. Please log in as an admin.
-        </Alert>
-      </Container>
+      <AdminLayout>
+        <Container size="xl" py="xl">
+          <Alert
+            icon={<IconAlertCircle size={16} />}
+            title="Access Denied"
+            color="red"
+          >
+            You don't have permission to access this page. Please log in as an admin.
+          </Alert>
+        </Container>
+      </AdminLayout>
     );
   }
 
   return (
-    <AppShell
-      header={{ height: 60 }}
-      navbar={{ width: 300, breakpoint: 'sm', collapsed: { mobile: !opened } }}
-      padding="md"
-    >
-      <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Group>
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-            <Group gap="xs">
-              <Text size="xl" fw={700} c="blue">MEDIENTE</Text>
+    <AdminLayout>
+      <Container size="xl">
+        <Stack gap="xl">
+          {/* Header */}
+          <Group justify="space-between" align="center">
+            <div>
+              <Title order={1} mb="xs">
+                Management Team
+              </Title>
+            </div>
+            <Group>
+              <Button variant="outline" color="blue">
+                Archived Users
+              </Button>
+              <Button 
+                color="blue" 
+                onClick={() => setShowUserModal(true)}
+              >
+                + Add User
+              </Button>
             </Group>
           </Group>
 
-          <Menu shadow="md" width={200}>
-            <Menu.Target>
-              <Button variant="subtle" rightSection={<IconChevronDown size={16} />}>
-                <Group gap="xs">
-                  <Avatar size="sm" color="blue">
-                    {adminUser?.name.charAt(0).toUpperCase()}
-                  </Avatar>
-                  <Text size="sm">{adminUser?.name}</Text>
-                </Group>
-              </Button>
-            </Menu.Target>
+          {/* Search and Filters */}
+          <Group gap="md">
+            <TextInput
+              placeholder="Search by name or email..."
+              leftSection={<IconSearch size={16} />}
+              style={{ flex: 1 }}
+              value={filters.search || ''}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            />
+            <Select
+              placeholder="All Roles"
+              data={[
+                { value: 'all', label: 'All Roles' },
+                { value: 'Admin', label: 'Admin' },
+                { value: 'HOD', label: 'HOD' },
+                { value: 'Associate', label: 'Associate' },
+                { value: 'Crew', label: 'Crew' }
+              ]}
+              value={filters.role || 'all'}
+              onChange={(value) => setFilters({ ...filters, role: value })}
+              style={{ minWidth: '150px' }}
+            />
+            <Select
+              placeholder="All Departments"
+              data={[
+                { value: 'all', label: 'All Departments' },
+                { value: 'Film', label: 'Film' },
+                { value: 'Talent', label: 'Talent' },
+                { value: 'Location', label: 'Location' }
+              ]}
+              value={filters.department || 'all'}
+              onChange={(value) => setFilters({ ...filters, department: value })}
+              style={{ minWidth: '180px' }}
+            />
+          </Group>
 
-            <Menu.Dropdown>
-              <Menu.Label>Account</Menu.Label>
-              <Menu.Item leftSection={<IconUser size={14} />}>
-                Profile
-              </Menu.Item>
-              <Menu.Item leftSection={<IconSettings size={14} />}>
-                Settings
-              </Menu.Item>
-              <Menu.Divider />
-              <Menu.Item 
-                leftSection={<IconLogout size={14} />}
+          {/* Table Controls */}
+          {selectedUsers.length > 0 && (
+            <Group justify="space-between">
+              <Checkbox
+                label={`${selectedUsers.length} items selected`}
+                checked={selectedUsers.length > 0}
+                onChange={() => setSelectedUsers([])}
+              />
+              <Button
+                variant="outline"
                 color="red"
-                onClick={handleLogout}
+                leftSection={<IconArchive size={16} />}
+                onClick={handleArchiveSelected}
               >
-                Logout
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        </Group>
-      </AppShell.Header>
-
-      <AppShell.Navbar p="md">
-       
-        
-        <NavLink
-          href="/admin/dashboard"
-          label="Dashboard"
-          leftSection={<IconDashboard size="1rem" />}
-        />
-        
-        <NavLink
-          href="/admin/users"
-          label="Teams"
-          leftSection={<IconUsers size="1rem" />}
-          active
-        />
-        
-        <NavLink
-          href="#"
-          label="Settings"
-          leftSection={<IconSettings size="1rem" />}
-        />
-      </AppShell.Navbar>
-
-      <AppShell.Main>
-        <Container size="xl">
-          <Stack gap="xl">
-            {/* Header */}
-            <Group justify="space-between" align="center">
-              <div>
-                <Title order={1} mb="xs">
-                  Management Team
-                </Title>
-              </div>
-              <Group>
-                <Button variant="outline" color="blue">
-                  Archived Users
-                </Button>
-                <Button 
-                  color="blue" 
-                  onClick={() => setShowUserModal(true)}
-                >
-                  + Add User
-                </Button>
-              </Group>
+                Archive Selected
+              </Button>
             </Group>
+          )}
 
-            {/* Search and Filters */}
-            <Group gap="md">
-              <TextInput
-                placeholder="Search by name or email..."
-                leftSection={<IconSearch size={16} />}
-                style={{ flex: 1 }}
-                value={filters.search || ''}
-                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              />
-              <Select
-                placeholder="All Roles"
-                data={[
-                  { value: 'all', label: 'All Roles' },
-                  { value: 'Admin', label: 'Admin' },
-                  { value: 'HOD', label: 'HOD' },
-                  { value: 'Associate', label: 'Associate' },
-                  { value: 'Crew', label: 'Crew' }
-                ]}
-                value={filters.role || 'all'}
-                onChange={(value) => setFilters({ ...filters, role: value })}
-                style={{ minWidth: '150px' }}
-              />
-              <Select
-                placeholder="All Departments"
-                data={[
-                  { value: 'all', label: 'All Departments' },
-                  { value: 'Film', label: 'Film' },
-                  { value: 'Talent', label: 'Talent' },
-                  { value: 'Location', label: 'Location' }
-                ]}
-                value={filters.department || 'all'}
-                onChange={(value) => setFilters({ ...filters, department: value })}
-                style={{ minWidth: '180px' }}
-              />
-            </Group>
-
-            {/* Table Controls */}
-            {selectedUsers.length > 0 && (
-              <Group justify="space-between">
-                <Checkbox
-                  label={`${selectedUsers.length} items selected`}
-                  checked={selectedUsers.length > 0}
-                  onChange={() => setSelectedUsers([])}
-                />
-                <Button
-                  variant="outline"
-                  color="red"
-                  leftSection={<IconArchive size={16} />}
-                  onClick={handleArchiveSelected}
-                >
-                  Archive Selected
-                </Button>
-              </Group>
-            )}
-
-            {/* Users Table */}
-            <Paper withBorder>
-              <Table>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th style={{ width: '50px' }}>
+          {/* Users Table */}
+          <Paper withBorder>
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th style={{ width: '50px' }}>
+                    <Checkbox
+                      checked={selectedUsers.length === users.length && users.length > 0}
+                      indeterminate={selectedUsers.length > 0 && selectedUsers.length < users.length}
+                      onChange={(event) => handleSelectAll(event.currentTarget.checked)}
+                    />
+                  </Table.Th>
+                  <Table.Th>Name</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th>Role</Table.Th>
+                  <Table.Th>Department</Table.Th>
+                  <Table.Th style={{ width: '150px' }}>Actions</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {users.map((user) => (
+                  <Table.Tr key={user.id}>
+                    <Table.Td>
                       <Checkbox
-                        checked={selectedUsers.length === users.length && users.length > 0}
-                        indeterminate={selectedUsers.length > 0 && selectedUsers.length < users.length}
-                        onChange={(event) => handleSelectAll(event.currentTarget.checked)}
+                        checked={selectedUsers.includes(user.id)}
+                        onChange={(event) => handleSelectUser(user.id, event.currentTarget.checked)}
                       />
-                    </Table.Th>
-                    <Table.Th>Name</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th>Role</Table.Th>
-                    <Table.Th>Department</Table.Th>
-                    <Table.Th style={{ width: '150px' }}>Actions</Table.Th>
+                    </Table.Td>
+                    <Table.Td>
+                      <Box>
+                        <Text fw={500}>{user.name}</Text>
+                        <Text size="sm" c="dimmed">{user.email}</Text>
+                      </Box>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge 
+                        color={user.status ? 'green' : 'red'} 
+                        variant="light"
+                        leftSection={
+                          <div style={{ 
+                            width: '8px', 
+                            height: '8px', 
+                            borderRadius: '50%', 
+                            backgroundColor: user.status ? '#40c057' : '#fa5252' 
+                          }} />
+                        }
+                      >
+                        {user.status ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge 
+                        color={
+                          user.role === 'Admin' ? 'purple' :
+                          user.role === 'HOD' ? 'red' : 
+                          user.role === 'Associate' ? 'blue' : 'green'
+                        } 
+                        variant="light"
+                      >
+                        {user.role}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>{user.department}</Table.Td>
+                    <Table.Td>
+                      <Group gap="xs">
+                        <Button
+                          size="xs"
+                          variant="light"
+                          color="green"
+                          onClick={() => handleViewUser(user)}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          color="blue"
+                          onClick={() => handleEditUser(user)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          color="blue"
+                          onClick={() => handleArchiveUser(user)}
+                        >
+                          Archive
+                        </Button>
+                      </Group>
+                    </Table.Td>
                   </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {users.map((user) => (
-                    <Table.Tr key={user.id}>
-                      <Table.Td>
-                        <Checkbox
-                          checked={selectedUsers.includes(user.id)}
-                          onChange={(event) => handleSelectUser(user.id, event.currentTarget.checked)}
-                        />
-                      </Table.Td>
-                      <Table.Td>
-                        <Box>
-                          <Text fw={500}>{user.name}</Text>
-                          <Text size="sm" c="dimmed">{user.email}</Text>
-                        </Box>
-                      </Table.Td>
-                      <Table.Td>
-                        <Badge 
-                          color={user.status ? 'green' : 'red'} 
-                          variant="light"
-                          leftSection={
-                            <div style={{ 
-                              width: '8px', 
-                              height: '8px', 
-                              borderRadius: '50%', 
-                              backgroundColor: user.status ? '#40c057' : '#fa5252' 
-                            }} />
-                          }
-                        >
-                          {user.status ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </Table.Td>
-                      <Table.Td>
-                        <Badge 
-                          color={
-                            user.role === 'Admin' ? 'purple' :
-                            user.role === 'HOD' ? 'red' : 
-                            user.role === 'Associate' ? 'blue' : 'green'
-                          } 
-                          variant="light"
-                        >
-                          {user.role}
-                        </Badge>
-                      </Table.Td>
-                      <Table.Td>{user.department}</Table.Td>
-                                        <Table.Td>
-                    <Group gap="xs">
-                      <Button
-                        size="xs"
-                        variant="light"
-                        color="green"
-                        onClick={() => handleViewUser(user)}
-                      >
-                        View
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        color="blue"
-                        onClick={() => handleEditUser(user)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        color="blue"
-                        onClick={() => handleArchiveUser(user)}
-                      >
-                        Archive
-                      </Button>
-                    </Group>
-                  </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
+                ))}
+              </Table.Tbody>
+            </Table>
 
-              {/* Pagination */}
-              <Group justify="center" p="md">
-                <Text size="sm" c="dimmed">
-                  Showing 1-{Math.min(10, users.length)} of {users.length}
-                </Text>
-                <Pagination
-                  total={Math.ceil(users.length / 10)}
-                  value={currentPage}
-                  onChange={setCurrentPage}
-                  size="sm"
-                />
-              </Group>
-            </Paper>
+            {/* Pagination */}
+            <Group justify="center" p="md">
+              <Text size="sm" c="dimmed">
+                Showing 1-{Math.min(10, users.length)} of {users.length}
+              </Text>
+              <Pagination
+                total={Math.ceil(users.length / 10)}
+                value={currentPage}
+                onChange={setCurrentPage}
+                size="sm"
+              />
+            </Group>
+          </Paper>
 
-            {/* Modals */}
-            <UserFormModal
-              opened={showUserModal}
-              onClose={() => {
-                setShowUserModal(false);
-                setEditingUser(null);
-                setIsViewMode(false);
-              }}
-              user={editingUser}
-              isViewMode={isViewMode}
-              onSuccess={() => {
-                onRefresh();
-                setShowUserModal(false);
-                setEditingUser(null);
-                setIsViewMode(false);
-              }}
-              adminUserId={adminUser?.id || ''}
-            />
+          {/* Modals */}
+          <UserFormModal
+            opened={showUserModal}
+            onClose={() => {
+              setShowUserModal(false);
+              setEditingUser(null);
+              setIsViewMode(false);
+            }}
+            user={editingUser}
+            isViewMode={isViewMode}
+            onSuccess={() => {
+              onRefresh();
+              setShowUserModal(false);
+              setEditingUser(null);
+              setIsViewMode(false);
+            }}
+            adminUserId={adminUser?.id || ''}
+          />
 
-            <ConfirmationDialog
-              opened={showConfirmation}
-              onClose={() => setShowConfirmation(false)}
-              {...confirmationData}
-              onConfirm={executeConfirmationAction}
-            />
-          </Stack>
-        </Container>
-      </AppShell.Main>
-    </AppShell>
+          <ConfirmationDialog
+            opened={showConfirmation}
+            onClose={() => setShowConfirmation(false)}
+            {...confirmationData}
+            onConfirm={executeConfirmationAction}
+          />
+        </Stack>
+      </Container>
+    </AdminLayout>
   );
 }
