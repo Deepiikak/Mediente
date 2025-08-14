@@ -26,7 +26,7 @@ import {
   IconMail,
 } from "@tabler/icons-react";
 import MedienteLogo from "../../assets/Mediente-Logo.png"
-
+import LandingImage from "../../assets/landing.jpg"
 import './AdminLogin.css';
 import { useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
@@ -176,7 +176,7 @@ export default function AdminLogin() {
           icon: <IconAlertCircle />,
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       notifications.show({
         title: "Error",
         message: "Failed to send reset email. Please try again.",
@@ -187,31 +187,11 @@ export default function AdminLogin() {
       setIsLoading(false);
     }
   };
-
+  
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "white",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "10px",
-      }}
-    >
+    <div className="min-h-screen bg-white flex items-center justify-center p-2.5">
       {/* Background Header */}
-      <Box
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          background: "#2196f3",
-          padding: "1px",
-          zIndex: 1,
-          boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-        }}
-      >
+      <Box className="fixed top-0 left-0 right-0 bg-blue-500 p-px z-10 shadow-lg">
         <Group p="sm" gap="md">
          <img src={MedienteLogo} alt="" />
         </Group>
@@ -228,42 +208,19 @@ export default function AdminLogin() {
           <Box
             flex={1}
             display={{ base: "none", md: "flex" }}
-            style={{ justifyContent: "center", alignItems: "center" }}
+            className="justify-center items-center"
           >
-            <div
-              style={{
-                background: "rgba(255, 255, 255, 0.1)",
-                borderRadius: "20px",
-                padding: "0",
-                textAlign: "center",
-                backdropFilter: "blur(10px)",
-                border: "1px solid rgba(255, 255, 255, 0.2)",
-                overflow: "hidden",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-                position: "relative",
-                minHeight: "340px",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "flex-end",
-              }}
-            >
+            <div className="bg-white/10 rounded-3xl p-0 text-center backdrop-blur-sm border border-white/20 overflow-hidden shadow-2xl relative min-h-[340px] flex flex-col justify-end">
               <img
-                src="https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=600&q=80"
+                src={LandingImage}
                 alt="Movie production"
-                style={{
-                  width: "100%",
-                  height: "240px",
-                  objectFit: "cover",
-                  display: "block",
-                  borderTopLeftRadius: "20px",
-                  borderTopRightRadius: "20px",
-                }}
+                className="w-full h-60 object-cover block rounded-t-3xl"
               />
-              <div style={{ padding: "32px 24px 24px 24px" }}>
-                <Text c="white" size="lg" fw={600} mb="xs" style={{ textShadow: "0 2px 8px rgba(0,0,0,0.5)" }}>
+              <div className="px-6 pt-8 pb-6">
+                <Text c="white" size="lg" fw={600} mb="xs" className="drop-shadow-lg">
                   Film Production Management
                 </Text>
-                <Text c="rgba(255,255,255,0.8)" size="sm" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.4)" }}>
+                <Text c="rgba(255,255,255,0.8)" size="sm" className="drop-shadow-sm">
                   Bringing Stories to Life
                 </Text>
               </div>
@@ -276,11 +233,7 @@ export default function AdminLogin() {
               shadow="xl"
               p="xl"
               radius="lg"
-              style={{
-                position: "relative",
-                background: "rgba(255, 255, 255, 0.95)",
-                backdropFilter: "blur(10px)",
-              }}
+              className="relative bg-white/95 backdrop-blur-sm"
             >
               <LoadingOverlay visible={isLoading} />
 
@@ -288,7 +241,7 @@ export default function AdminLogin() {
                 {/* Header */}
                 <Box ta="center">
                   <Title order={2} size="h3" fw={700} c="black" mb="xs">
-                    <span style={{ color: "#2196f3" }}>Welcome </span>to
+                    <span className="text-blue-500">Welcome </span>to
                     Mediente Admin Dashboard 🚀
                   </Title>
                   {/* <Text c="dimmed" size="sm" mt="sm" ta="end">
@@ -370,7 +323,7 @@ export default function AdminLogin() {
                           <Anchor
                             size="sm"
                             onClick={() => setShowForgotPassword(true)}
-                            style={{ cursor: "pointer" }}
+                            className="cursor-pointer"
                           >
                             Reset Password
                           </Anchor>
