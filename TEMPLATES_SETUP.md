@@ -207,3 +207,4 @@ Make sure these packages are installed:
 - `@tabler/icons-react` - Icons
 - `react-router-dom` - Routing
 - `supabase` - Database client
+
