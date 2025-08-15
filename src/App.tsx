@@ -9,6 +9,7 @@ import AdminProjects from './pages/admin/AdminProjects';
 import AdminTeams from './pages/admin/AdminTeams';
 import AdminCrew from './pages/admin/AdminCrew';
 import AdminTemplate from './pages/admin/AdminTemplate';
+import AdminCallSheet from './pages/admin/AdminCallSheet';
 import './App.css'
 // Import Mantine styles
 import '@mantine/core/styles.css';
@@ -34,6 +35,7 @@ function App() {
               <Route path="teams" element={<AdminTeams />} />
               <Route path="crew" element={<AdminCrew />} />
               <Route path="templates" element={<AdminTemplate />} />
+              <Route path="callsheet" element={<AdminCallSheet />} />
               
               {/* Other navigation routes - redirect to dashboard for now */}
               <Route path="calendar" element={<Navigate to="/admin/dashboard" replace />} />

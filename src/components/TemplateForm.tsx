@@ -115,3 +115,13 @@ export function TemplateForm({
     </Modal>
   );
 }
+type location={
+  tittle:string,
+  link:string,
+  address: string,
+  contact_number:number
+
+
+
+
+}[]

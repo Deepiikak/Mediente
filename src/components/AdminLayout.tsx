@@ -16,7 +16,6 @@ import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { 
   IconDashboard, 
-  IconUsers, 
   IconSettings, 
   IconLogout,
   IconUser,
@@ -26,7 +25,8 @@ import {
   IconFiles,
   IconBuilding,
   IconUsersGroup,
-  IconSettings2
+  IconSettings2,
+  IconClipboardList
 } from '@tabler/icons-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import authService from '../services/authService';
@@ -170,6 +170,12 @@ export default function AdminLayout() {
             onClick={() => navigate('/admin/templates')}
           />
           
+          <NavLink
+            label="Call Sheet"
+            leftSection={<IconClipboardList size="1rem" />}
+            active={isActive('/admin/callsheet')}
+            onClick={() => navigate('/admin/callsheet')}
+          />
 
           
           <NavLink
