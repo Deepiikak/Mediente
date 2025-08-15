@@ -1,0 +1,424 @@
+import supabase from '../supabase';
+import type { 
+  CallSheetDB, 
+  CallSheetCompleteDB,
+  CreateCallSheetDB,
+  CreateTimeTableItemDB,
+  CreateLocationDB,
+  CreateScheduleItemDB,
+  CallSheetFilters,
+  CallSheetQueryOptions,
+  CallSheetListResponse,
+  CallSheetResponse,
+  CallSheetMutationResponse
+} from '../types/database/callsheet';
+import type { CallSheetFormData } from '../types/callsheet';
+
+export class CallSheetService {
+  // =====================================================
+  // CRUD Operations for Call Sheets
+  // =====================================================
+
+  /**
+   * Create a new call sheet with all related data
+   */
+  async createCallSheet(formData: CallSheetFormData, userId?: string): Promise<CallSheetMutationResponse> {
+    try {
+      // Start a transaction by creating the main call sheet first
+      const callSheetData: CreateCallSheetDB = {
+        project_name: formData.project_name,
+        date: formData.date,
+        call_to: formData.call_to,
+        time: formData.time,
+        description: formData.description || undefined,
+        status: this.determineStatus(formData.date),
+        created_by: userId,
+      };
+
+      const { data: callSheet, error: callSheetError } = await supabase
+        .from('call_sheets')
+        .insert(callSheetData)
+        .select()
+        .single();
+
+      if (callSheetError) {
+        throw new Error(`Failed to create call sheet: ${callSheetError.message}`);
+      }
+
+      // Insert related data
+      await Promise.all([
+        this.insertTimeTableItems(callSheet.id, formData.time_table),
+        this.insertLocations(callSheet.id, formData.location),
+        this.insertScheduleItems(callSheet.id, formData.schedule),
+      ]);
+
+      return {
+        data: callSheet,
+        success: true,
+        message: 'Call sheet created successfully',
+      };
+    } catch (error) {
+      console.error('Error creating call sheet:', error);
+      return {
+        data: {} as CallSheetDB,
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to create call sheet',
+      };
+    }
+  }
+
+  /**
+   * Update an existing call sheet
+   */
+  async updateCallSheet(id: string, formData: CallSheetFormData): Promise<CallSheetMutationResponse> {
+    try {
+      // Update main call sheet
+      const updateData: Partial<CreateCallSheetDB> = {
+        project_name: formData.project_name,
+        date: formData.date,
+        call_to: formData.call_to,
+        time: formData.time,
+        description: formData.description || undefined,
+        status: this.determineStatus(formData.date),
+      };
+
+      const { data: callSheet, error: updateError } = await supabase
+        .from('call_sheets')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (updateError) {
+        throw new Error(`Failed to update call sheet: ${updateError.message}`);
+      }
+
+      // Delete existing related data and insert new ones
+      await Promise.all([
+        this.deleteRelatedData(id),
+      ]);
+
+      await Promise.all([
+        this.insertTimeTableItems(id, formData.time_table),
+        this.insertLocations(id, formData.location),
+        this.insertScheduleItems(id, formData.schedule),
+      ]);
+
+      return {
+        data: callSheet,
+        success: true,
+        message: 'Call sheet updated successfully',
+      };
+    } catch (error) {
+      console.error('Error updating call sheet:', error);
+      return {
+        data: {} as CallSheetDB,
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to update call sheet',
+      };
+    }
+  }
+
+  /**
+   * Get call sheet by ID with all related data
+   */
+  async getCallSheetById(id: string): Promise<CallSheetResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('call_sheets_complete')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        throw new Error(`Call sheet not found: ${error.message}`);
+      }
+
+      return {
+        data,
+        success: true,
+      };
+    } catch (error) {
+      console.error('Error fetching call sheet:', error);
+      return {
+        data: {} as CallSheetCompleteDB,
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to fetch call sheet',
+      };
+    }
+  }
+
+  /**
+   * Get list of call sheets with filtering and pagination
+   */
+  async getCallSheets(
+    filters: CallSheetFilters = {},
+    options: CallSheetQueryOptions = {}
+  ): Promise<CallSheetListResponse> {
+    try {
+      const {
+        limit = 10,
+        offset = 0,
+        order_by = 'created_at',
+        order_direction = 'desc',
+        include_relations = true,
+      } = options;
+
+      let query = supabase
+        .from(include_relations ? 'call_sheets_complete' : 'call_sheets')
+        .select('*');
+
+      // Apply filters
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+      if (filters.date_from) {
+        query = query.gte('date', filters.date_from);
+      }
+      if (filters.date_to) {
+        query = query.lte('date', filters.date_to);
+      }
+      if (filters.project_name) {
+        query = query.ilike('project_name', `%${filters.project_name}%`);
+      }
+      if (filters.created_by) {
+        query = query.eq('created_by', filters.created_by);
+      }
+      if (filters.search) {
+        query = query.or(`project_name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,call_to.ilike.%${filters.search}%`);
+      }
+
+      // Apply sorting and pagination
+      query = query
+        .order(order_by, { ascending: order_direction === 'asc' })
+        .range(offset, offset + limit - 1);
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        throw new Error(`Failed to fetch call sheets: ${error.message}`);
+      }
+
+      const total = count || 0;
+      const page = Math.floor(offset / limit) + 1;
+      const has_more = offset + limit < total;
+
+      return {
+        data: data || [],
+        total,
+        page,
+        limit,
+        has_more,
+      };
+    } catch (error) {
+      console.error('Error fetching call sheets:', error);
+      return {
+        data: [],
+        total: 0,
+        page: 1,
+        limit: 10,
+        has_more: false,
+      };
+    }
+  }
+
+  /**
+   * Delete a call sheet and all related data
+   */
+  async deleteCallSheet(id: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const { error } = await supabase
+        .from('call_sheets')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        throw new Error(`Failed to delete call sheet: ${error.message}`);
+      }
+
+      return {
+        success: true,
+        message: 'Call sheet deleted successfully',
+      };
+    } catch (error) {
+      console.error('Error deleting call sheet:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to delete call sheet',
+      };
+    }
+  }
+
+  // =====================================================
+  // Helper Methods
+  // =====================================================
+
+  /**
+   * Insert time table items for a call sheet
+   */
+  private async insertTimeTableItems(callSheetId: string, timeTable: CallSheetFormData['time_table']) {
+    if (!timeTable || timeTable.length === 0) return;
+
+    const items: CreateTimeTableItemDB[] = timeTable.map((item, index) => ({
+      call_sheet_id: callSheetId,
+      item: item.item,
+      time: item.date, // Note: 'date' field in form contains time value
+      sort_order: index + 1,
+    }));
+
+    const { error } = await supabase
+      .from('call_sheet_time_table')
+      .insert(items);
+
+    if (error) {
+      throw new Error(`Failed to insert time table items: ${error.message}`);
+    }
+  }
+
+  /**
+   * Insert locations for a call sheet
+   */
+  private async insertLocations(callSheetId: string, locations: CallSheetFormData['location']) {
+    if (!locations || locations.length === 0) return;
+
+    const items: CreateLocationDB[] = locations.map((location, index) => ({
+      call_sheet_id: callSheetId,
+      location_title: location.location_title,
+      address: location.address,
+      link: location.link || undefined,
+      contact_number: location.contact_number,
+      sort_order: index + 1,
+    }));
+
+    const { error } = await supabase
+      .from('call_sheet_locations')
+      .insert(items);
+
+    if (error) {
+      throw new Error(`Failed to insert locations: ${error.message}`);
+    }
+  }
+
+  /**
+   * Insert schedule items for a call sheet
+   */
+  private async insertScheduleItems(callSheetId: string, schedule: CallSheetFormData['schedule']) {
+    if (!schedule || schedule.length === 0) return;
+
+    const items: CreateScheduleItemDB[] = schedule.map((item, index) => ({
+      call_sheet_id: callSheetId,
+      time: item.time,
+      scene: item.scene,
+      description: item.description,
+      sort_order: index + 1,
+    }));
+
+    const { error } = await supabase
+      .from('call_sheet_schedule')
+      .insert(items);
+
+    if (error) {
+      throw new Error(`Failed to insert schedule items: ${error.message}`);
+    }
+  }
+
+  /**
+   * Delete all related data for a call sheet
+   */
+  private async deleteRelatedData(callSheetId: string) {
+    await Promise.all([
+      supabase.from('call_sheet_time_table').delete().eq('call_sheet_id', callSheetId),
+      supabase.from('call_sheet_locations').delete().eq('call_sheet_id', callSheetId),
+      supabase.from('call_sheet_schedule').delete().eq('call_sheet_id', callSheetId),
+    ]);
+  }
+
+  /**
+   * Determine call sheet status based on date
+   */
+  private determineStatus(date: string): 'upcoming' | 'expired' | 'active' {
+    const callSheetDate = new Date(date);
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    if (date === todayStr) {
+      return 'active';
+    } else if (callSheetDate > today) {
+      return 'upcoming';
+    } else {
+      return 'expired';
+    }
+  }
+
+  // =====================================================
+  // Data Transformation Methods
+  // =====================================================
+
+  /**
+   * Convert database call sheet to form data format
+   */
+  dbToFormData(dbData: CallSheetCompleteDB): CallSheetFormData {
+    return {
+      project_name: dbData.project_name,
+      date: dbData.date,
+      call_to: dbData.call_to,
+      time: dbData.time,
+      description: dbData.description || '',
+      time_table: dbData.time_table?.map(item => ({
+        item: item.item,
+        date: item.time, // Note: mapping time back to 'date' field for form compatibility
+      })) || [{ item: '', date: '' }],
+      location: dbData.locations?.map(loc => ({
+        location_title: loc.location_title,
+        link: loc.link || '',
+        address: loc.address,
+        contact_number: loc.contact_number,
+      })) || [{ location_title: '', link: '', address: '', contact_number: '' }],
+      schedule: dbData.schedule?.map(sch => ({
+        time: sch.time,
+        scene: sch.scene,
+        description: sch.description,
+      })) || [{ time: '', scene: '', description: '' }],
+    };
+  }
+
+  /**
+   * Get statistics for dashboard
+   */
+  async getCallSheetStats(): Promise<{
+    total: number;
+    active: number;
+    upcoming: number;
+    expired: number;
+    recent: number;
+  }> {
+    try {
+      const { data, error } = await supabase
+        .from('call_sheets')
+        .select('status, created_at');
+
+      if (error) throw error;
+
+      const stats = {
+        total: data.length,
+        active: data.filter(cs => cs.status === 'active').length,
+        upcoming: data.filter(cs => cs.status === 'upcoming').length,
+        expired: data.filter(cs => cs.status === 'expired').length,
+        recent: data.filter(cs => {
+          const createdDate = new Date(cs.created_at);
+          const weekAgo = new Date();
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          return createdDate >= weekAgo;
+        }).length,
+      };
+
+      return stats;
+    } catch (error) {
+      console.error('Error fetching call sheet stats:', error);
+      return { total: 0, active: 0, upcoming: 0, expired: 0, recent: 0 };
+    }
+  }
+}
+
+// Export a singleton instance
+export const callSheetService = new CallSheetService();

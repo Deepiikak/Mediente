@@ -66,6 +66,8 @@ export default function CallSheetForm({
   const form = useForm<CallSheetFormData>({
     initialValues: { ...defaultFormValues, ...initialData },
     validate: yupResolver(callSheetSchema),
+    validateInputOnBlur: true,
+    validateInputOnChange: true,
   });
 
   // Update form values when initialData changes (for edit mode)
@@ -461,7 +463,33 @@ export default function CallSheetForm({
               color="red"
               mt="md"
             >
-              Please fix the errors above before submitting the form.
+              <Stack gap="xs">
+                <Text size="sm">Please fix the following errors before submitting:</Text>
+                {Object.entries(form.errors).map(([field, error]) => {
+                  // Handle nested errors for arrays
+                  if (typeof error === 'object' && error !== null) {
+                    return Object.entries(error).map(([index, nestedError]) => {
+                      if (typeof nestedError === 'object' && nestedError !== null) {
+                        return Object.entries(nestedError).map(([subField, subError]) => (
+                          <Text key={`${field}.${index}.${subField}`} size="xs" c="red">
+                            • {field.replace('_', ' ')} #{parseInt(index) + 1}: {String(subError)}
+                          </Text>
+                        ));
+                      }
+                      return (
+                        <Text key={`${field}.${index}`} size="xs" c="red">
+                          • {field.replace('_', ' ')}: {String(nestedError)}
+                        </Text>
+                      );
+                    });
+                  }
+                  return (
+                    <Text key={field} size="xs" c="red">
+                      • {field.replace('_', ' ')}: {String(error)}
+                    </Text>
+                  );
+                })}
+              </Stack>
             </Alert>
           )}
         </form>

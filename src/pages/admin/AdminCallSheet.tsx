@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Container,
   Title,
@@ -15,6 +15,8 @@ import {
   Menu,
   Modal,
   Alert,
+  Loader,
+  Center,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
@@ -37,6 +39,8 @@ import {
 } from '@tabler/icons-react';
 import CallSheetForm from '../../components/CallSheetForm';
 import type { CallSheetFormData } from '../../types/callsheet';
+import { callSheetService } from '../../services/callSheetService';
+import type { CallSheetCompleteDB } from '../../types/database/callsheet';
 
 // Mock data for demonstration
 const mockCallSheets = [
@@ -121,46 +125,107 @@ const mockCallSheets = [
 
 export default function AdminCallSheet() {
   const [activeTab, setActiveTab] = useState<string | null>('recent');
-  const [callSheets, setCallSheets] = useState(mockCallSheets);
-  const [editingCallSheet, setEditingCallSheet] = useState<any>(null);
-  const [previewingCallSheet, setPreviewingCallSheet] = useState<any>(null);
+  const [callSheets, setCallSheets] = useState<CallSheetCompleteDB[]>([]);
+  const [editingCallSheet, setEditingCallSheet] = useState<CallSheetCompleteDB | null>(null);
+  const [previewingCallSheet, setPreviewingCallSheet] = useState<CallSheetCompleteDB | null>(null);
   const [formLoading, setFormLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [deleteModalOpened, { open: openDeleteModal, close: closeDeleteModal }] = useDisclosure(false);
   const [previewModalOpened, { open: openPreviewModal, close: closePreviewModal }] = useDisclosure(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
+  // Load call sheets from database
+  useEffect(() => {
+    loadCallSheets();
+  }, []);
+
+  const loadCallSheets = async () => {
+    setDataLoading(true);
+    try {
+      const response = await callSheetService.getCallSheets({}, { limit: 50, order_by: 'created_at', order_direction: 'desc' });
+      setCallSheets(response.data);
+    } catch (error) {
+      console.error('Error loading call sheets:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to load call sheets. Using demo data.',
+        color: 'orange',
+      });
+      // Fallback to mock data if database fails (convert to proper format)
+      const convertedMockData: CallSheetCompleteDB[] = mockCallSheets.map(sheet => ({
+        id: sheet.id,
+        project_name: sheet.project_name,
+        date: sheet.date,
+        call_to: sheet.call_to,
+        time: sheet.time,
+        description: sheet.description,
+        status: sheet.status as 'draft' | 'active' | 'upcoming' | 'expired' | 'archived',
+        created_at: sheet.created_at,
+        updated_at: sheet.created_at,
+        created_by: undefined,
+        time_table: sheet.time_table.map((item, index) => ({
+          id: `mock-tt-${index}`,
+          call_sheet_id: sheet.id,
+          item: item.item,
+          time: item.date,
+          sort_order: index + 1,
+          created_at: sheet.created_at,
+          updated_at: sheet.created_at,
+        })),
+        locations: sheet.location.map((loc, index) => ({
+          id: `mock-loc-${index}`,
+          call_sheet_id: sheet.id,
+          location_title: loc.location_title,
+          address: loc.address,
+          link: loc.link,
+          contact_number: loc.contact_number,
+          sort_order: index + 1,
+          created_at: sheet.created_at,
+          updated_at: sheet.created_at,
+        })),
+        schedule: sheet.schedule.map((sch, index) => ({
+          id: `mock-sch-${index}`,
+          call_sheet_id: sheet.id,
+          time: sch.time,
+          scene: sch.scene,
+          description: sch.description,
+          sort_order: index + 1,
+          created_at: sheet.created_at,
+          updated_at: sheet.created_at,
+        })),
+      }));
+      setCallSheets(convertedMockData);
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
   const handleCreateCallSheet = async (data: CallSheetFormData) => {
     setFormLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // TODO: Get actual user ID from auth context
+      const userId = undefined; // Replace with actual user ID when auth is implemented
       
-      const newCallSheet = {
-        id: Date.now().toString(),
-        project_name: data.project_name,
-        date: data.date,
-        call_to: data.call_to,
-        time: data.time,
-        status: new Date(data.date) >= new Date() ? 'upcoming' : 'expired',
-        created_at: new Date().toISOString().split('T')[0],
-        time_table: data.time_table,
-        location: data.location,
-        schedule: data.schedule,
-        description: data.description,
-      };
-
-      setCallSheets(prev => [newCallSheet, ...prev]);
-      setActiveTab('recent');
+      const response = await callSheetService.createCallSheet(data, userId);
       
-      notifications.show({
-        title: 'Success',
-        message: 'Call sheet created successfully!',
-        color: 'green',
-      });
+      if (response.success) {
+        // Reload the data to get the complete call sheet with relations
+        await loadCallSheets();
+        setActiveTab('recent');
+        
+        notifications.show({
+          title: 'Success',
+          message: response.message || 'Call sheet created successfully!',
+          color: 'green',
+        });
+      } else {
+        throw new Error(response.message || 'Failed to create call sheet');
+      }
     } catch (error) {
+      console.error('Error creating call sheet:', error);
       notifications.show({
         title: 'Error',
-        message: 'Failed to create call sheet. Please try again.',
+        message: error instanceof Error ? error.message : 'Failed to create call sheet. Please try again.',
         color: 'red',
       });
     } finally {
@@ -168,7 +233,7 @@ export default function AdminCallSheet() {
     }
   };
 
-  const handleEditCallSheet = (callSheet: any) => {
+  const handleEditCallSheet = (callSheet: CallSheetCompleteDB) => {
     setEditingCallSheet(callSheet);
     setActiveTab('edit');
   };
@@ -176,38 +241,31 @@ export default function AdminCallSheet() {
   const handleUpdateCallSheet = async (data: CallSheetFormData) => {
     setFormLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!editingCallSheet) {
+        throw new Error('No call sheet selected for editing');
+      }
+
+      const response = await callSheetService.updateCallSheet(editingCallSheet.id, data);
       
-      setCallSheets(prev => prev.map(sheet => 
-        sheet.id === editingCallSheet.id 
-          ? { 
-              ...sheet, 
-              project_name: data.project_name, 
-              date: data.date, 
-              call_to: data.call_to,
-              time: data.time,
-              time_table: data.time_table,
-              location: data.location,
-              schedule: data.schedule,
-              description: data.description,
-              status: new Date(data.date) >= new Date() ? 'upcoming' : 'expired',
-            }
-          : sheet
-      ));
-      
-      setActiveTab('recent');
-      setEditingCallSheet(null);
-      
-      notifications.show({
-        title: 'Success',
-        message: 'Call sheet updated successfully!',
-        color: 'green',
-      });
+      if (response.success) {
+        // Reload the data to get the updated call sheet with relations
+        await loadCallSheets();
+        setActiveTab('recent');
+        setEditingCallSheet(null);
+        
+        notifications.show({
+          title: 'Success',
+          message: response.message || 'Call sheet updated successfully!',
+          color: 'green',
+        });
+      } else {
+        throw new Error(response.message || 'Failed to update call sheet');
+      }
     } catch (error) {
+      console.error('Error updating call sheet:', error);
       notifications.show({
         title: 'Error',
-        message: 'Failed to update call sheet. Please try again.',
+        message: error instanceof Error ? error.message : 'Failed to update call sheet. Please try again.',
         color: 'red',
       });
     } finally {
@@ -215,7 +273,7 @@ export default function AdminCallSheet() {
     }
   };
 
-  const handlePreviewCallSheet = (callSheet: any) => {
+  const handlePreviewCallSheet = (callSheet: CallSheetCompleteDB) => {
     setPreviewingCallSheet(callSheet);
     openPreviewModal();
   };
@@ -224,22 +282,27 @@ export default function AdminCallSheet() {
     if (!deleteTargetId) return;
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const response = await callSheetService.deleteCallSheet(deleteTargetId);
       
-      setCallSheets(prev => prev.filter(sheet => sheet.id !== deleteTargetId));
-      closeDeleteModal();
-      setDeleteTargetId(null);
-      
-      notifications.show({
-        title: 'Success',
-        message: 'Call sheet deleted successfully!',
-        color: 'green',
-      });
+      if (response.success) {
+        // Reload the data to reflect the deletion
+        await loadCallSheets();
+        closeDeleteModal();
+        setDeleteTargetId(null);
+        
+        notifications.show({
+          title: 'Success',
+          message: response.message || 'Call sheet deleted successfully!',
+          color: 'green',
+        });
+      } else {
+        throw new Error(response.message || 'Failed to delete call sheet');
+      }
     } catch (error) {
+      console.error('Error deleting call sheet:', error);
       notifications.show({
         title: 'Error',
-        message: 'Failed to delete call sheet. Please try again.',
+        message: error instanceof Error ? error.message : 'Failed to delete call sheet. Please try again.',
         color: 'red',
       });
     }
@@ -333,7 +396,14 @@ export default function AdminCallSheet() {
                 </Button>
               </Group>
 
-              {getRecentCallSheets().length === 0 ? (
+              {dataLoading ? (
+                <Center p="xl">
+                  <Stack align="center" gap="md">
+                    <Loader size="lg" />
+                    <Text c="dimmed">Loading call sheets...</Text>
+                  </Stack>
+                </Center>
+              ) : getRecentCallSheets().length === 0 ? (
                 <Paper p="xl" ta="center">
                   <IconCalendar size={48} color="gray" />
                   <Title order={3} c="dimmed" mt="md">
@@ -457,7 +527,14 @@ export default function AdminCallSheet() {
                 </Button>
               </Group>
 
-              {getExpiredCallSheets().length === 0 ? (
+              {dataLoading ? (
+                <Center p="xl">
+                  <Stack align="center" gap="md">
+                    <Loader size="lg" />
+                    <Text c="dimmed">Loading call sheets...</Text>
+                  </Stack>
+                </Center>
+              ) : getExpiredCallSheets().length === 0 ? (
                 <Paper p="xl" ta="center">
                   <IconClock size={48} color="gray" />
                   <Title order={3} c="dimmed" mt="md">
@@ -567,16 +644,7 @@ export default function AdminCallSheet() {
             <Tabs.Panel value="edit" pt="md">
               <CallSheetForm 
                 onSubmit={handleUpdateCallSheet}
-                initialData={{
-                  project_name: editingCallSheet.project_name || '',
-                  date: editingCallSheet.date || '',
-                  call_to: editingCallSheet.call_to || '',
-                  time: editingCallSheet.time || '',
-                  description: editingCallSheet.description || '',
-                  time_table: editingCallSheet.time_table || [{ item: '', date: '' }],
-                  location: editingCallSheet.location || [{ location_title: '', link: '', address: '', contact_number: '' }],
-                  schedule: editingCallSheet.schedule || [{ time: '', scene: '', description: '' }],
-                }}
+                initialData={callSheetService.dbToFormData(editingCallSheet)}
                 isLoading={formLoading}
                 mode="edit"
               />
@@ -674,14 +742,14 @@ export default function AdminCallSheet() {
             )}
 
             {/* Locations */}
-            {previewingCallSheet.location && previewingCallSheet.location.length > 0 && (
+            {previewingCallSheet.locations && previewingCallSheet.locations.length > 0 && (
               <Paper p="md" withBorder>
                 <Title order={4} mb="md" c="orange">
                   <IconMapPin size={20} style={{ marginRight: 8 }} />
                   Locations
                 </Title>
                 <Stack gap="md">
-                  {previewingCallSheet.location.map((loc: any, index: number) => (
+                  {previewingCallSheet.locations.map((loc: any, index: number) => (
                     <Card key={index} p="sm" withBorder>
                       <Text fw={500} mb="xs">{loc.location_title}</Text>
                       <Text size="sm" c="dimmed" mb="xs">{loc.address}</Text>

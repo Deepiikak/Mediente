@@ -1,10 +1,10 @@
 import * as yup from 'yup';
 
 export const callSheetSchema = yup.object({
-  movie_name: yup
+  project_name: yup
     .string()
-    .required('Movie name is required')
-    .min(2, 'Movie name must be at least 2 characters'),
+    .required('Project name is required')
+    .min(2, 'Project name must be at least 2 characters'),
   
   date: yup
     .string()
@@ -21,7 +21,9 @@ export const callSheetSchema = yup.object({
   
   description: yup
     .string()
-    .optional(),
+    .optional()
+    .nullable()
+    .transform((value) => value === '' ? '' : value),
   
   time_table: yup
     .array()
@@ -49,7 +51,9 @@ export const callSheetSchema = yup.object({
         link: yup
           .string()
           .url('Must be a valid URL')
-          .optional(),
+          .optional()
+          .nullable()
+          .transform((value) => value === '' ? null : value),
         address: yup
           .string()
           .required('Address is required')
@@ -57,7 +61,7 @@ export const callSheetSchema = yup.object({
         contact_number: yup
           .string()
           .required('Contact number is required')
-          .matches(/^[\d\s\-\+\(\)]+$/, 'Invalid phone number format'),
+          .matches(/^[\d\s\-\+\(\)\.]+$/, 'Please enter a valid phone number'),
       })
     )
     .min(1, 'At least one location is required'),
