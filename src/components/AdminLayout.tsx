@@ -28,15 +28,12 @@ import {
   IconUsersGroup,
   IconSettings2
 } from '@tabler/icons-react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import authService from '../services/authService';
 import type { AdminUser } from '../types/auth';
 
-interface AdminLayoutProps {
-  children: React.ReactNode;
-}
 
-export default function AdminLayout({ children }: AdminLayoutProps) {
+export default function AdminLayout() {
   const [opened, { toggle }] = useDisclosure();
   const [user, setUser] = useState<AdminUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -215,7 +212,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       </AppShell.Navbar>
 
       <AppShell.Main>
-        {children}
+        <Outlet />
       </AppShell.Main>
     </AppShell>
   );

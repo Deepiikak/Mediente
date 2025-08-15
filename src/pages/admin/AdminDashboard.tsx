@@ -11,9 +11,7 @@ import {
   Center,
   Loader,
 } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
-import AdminLayout from '../../components/AdminLayout';
 import authService from '../../services/authService';
 import type { AdminUser } from '../../types/auth';
 
@@ -34,8 +32,8 @@ export default function AdminDashboard() {
         return;
       }
       setUser(currentUser);
-    } catch (error) {
-      console.error('Failed to load user:', error);
+    } catch {
+      console.error('Failed to load user');
       navigate('/admin/login');
     } finally {
       setIsLoading(false);
@@ -50,7 +48,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <AdminLayout>
+    
       <Container size="xl">
         <Group justify="space-between" mb="xl">
           <div>
@@ -156,6 +154,5 @@ export default function AdminDashboard() {
           </Group>
         </Paper>
       </Container>
-    </AdminLayout>
   );
 }

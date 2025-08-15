@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Container, Title, Button, Group, Card, Text, Stack, Badge } from '@mantine/core';
 import { IconPlus } from '@tabler/icons-react';
-import { TemplateForm } from '../../components/TemplateForm';
+import { TemplateForm } from '../../oldCode/TemplateForm';
 import type { templateFormType, templateType } from '../../types/adminTemplates';
 
 export default function TemplateDemo() {
