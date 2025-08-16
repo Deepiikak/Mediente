@@ -10,17 +10,35 @@ import type {
   ReportingManager 
 } from '../types/userManagement';
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  count: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 class UserService {
-  // Get all users with optional filters
-  async getUsers(filters?: UserFilters): Promise<User[]> {
+  // Get users with pagination and filters
+  async getUsers(
+    page: number = 1, 
+    pageSize: number = 10, 
+    filters?: UserFilters
+  ): Promise<PaginatedResponse<User>> {
     try {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
       let query = supabase
         .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
+      // Apply filters
       if (filters?.search) {
-        query = query.or(`name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
+        const searchTerm = filters.search.trim();
+        query = query.or(`name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
       }
 
       if (filters?.role && filters.role !== 'all') {
@@ -35,16 +53,56 @@ class UserService {
         query = query.eq('status', filters.status);
       }
 
-      const { data, error } = await query;
+      const { data, error, count } = await query;
 
       if (error) {
         console.error('Error fetching users:', error);
-        throw new Error(error.message);
+        throw new Error(`Failed to fetch users: ${error.message}`);
+      }
+
+      const totalCount = count || 0;
+      const totalPages = Math.ceil(totalCount / pageSize);
+
+      return {
+        data: data || [],
+        count: totalCount,
+        page,
+        pageSize,
+        totalPages
+      };
+    } catch (error) {
+      console.error('Error in getUsers:', error);
+      throw error;
+    }
+  }
+
+  // Get all users for dropdown/select components (without pagination)
+  async getAllUsers(filters?: Omit<UserFilters, 'search'>): Promise<User[]> {
+    try {
+      let query = supabase
+        .from('users')
+        .select('id, name, email, role, department, status')
+        .eq('status', true)
+        .order('name', { ascending: true });
+
+      if (filters?.role && filters.role !== 'all') {
+        query = query.eq('role', filters.role);
+      }
+
+      if (filters?.department && filters.department !== 'all') {
+        query = query.eq('department', filters.department);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching all users:', error);
+        throw new Error(`Failed to fetch users: ${error.message}`);
       }
 
       return data || [];
     } catch (error) {
-      console.error('Error in getUsers:', error);
+      console.error('Error in getAllUsers:', error);
       throw error;
     }
   }
@@ -235,24 +293,30 @@ class UserService {
     }
   }
 
-  // Get departments
+  // Get departments with user counts
   async getDepartments(): Promise<Department[]> {
     try {
       const { data, error } = await supabase
         .from('users')
         .select('department')
-        .not('department', 'is', null);
+        .not('department', 'is', null)
+        .eq('status', true);
 
       if (error) {
         console.error('Error fetching departments:', error);
-        throw new Error(error.message);
+        throw new Error(`Failed to fetch departments: ${error.message}`);
       }
 
-      // Get unique departments
-      const uniqueDepartments = [...new Set(data.map(item => item.department))];
-      return uniqueDepartments.map((dept, index) => ({
+      // Get unique departments and count users
+      const departmentCounts: Record<string, number> = {};
+      data.forEach(item => {
+        departmentCounts[item.department] = (departmentCounts[item.department] || 0) + 1;
+      });
+
+      return Object.entries(departmentCounts).map(([name, count], index) => ({
         id: index.toString(),
-        name: dept
+        name,
+        description: `${count} active users`
       }));
     } catch (error) {
       console.error('Error in getDepartments:', error);
@@ -282,21 +346,53 @@ class UserService {
     }
   }
 
-  // Get audit logs
-  async getAuditLogs(limit: number = 100): Promise<AuditLog[]> {
+  // Get audit logs with pagination
+  async getAuditLogs(
+    page: number = 1, 
+    pageSize: number = 50, 
+    targetUserId?: string
+  ): Promise<PaginatedResponse<AuditLog & { admin_name?: string; target_name?: string }>> {
     try {
-      const { data, error } = await supabase
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      let query = supabase
         .from('audit_logs')
-        .select('*')
+        .select(`
+          *,
+          admin_users!audit_logs_admin_user_fkey(name),
+          users!audit_logs_target_user_fkey(name)
+        `, { count: 'exact' })
         .order('timestamp', { ascending: false })
-        .limit(limit);
+        .range(from, to);
+
+      if (targetUserId) {
+        query = query.eq('target_user', targetUserId);
+      }
+
+      const { data, error, count } = await query;
 
       if (error) {
         console.error('Error fetching audit logs:', error);
-        throw new Error(error.message);
+        throw new Error(`Failed to fetch audit logs: ${error.message}`);
       }
 
-      return data || [];
+      const transformedData = (data || []).map(log => ({
+        ...log,
+        admin_name: log.admin_users?.name,
+        target_name: log.users?.name
+      }));
+
+      const totalCount = count || 0;
+      const totalPages = Math.ceil(totalCount / pageSize);
+
+      return {
+        data: transformedData,
+        count: totalCount,
+        page,
+        pageSize,
+        totalPages
+      };
     } catch (error) {
       console.error('Error in getAuditLogs:', error);
       throw error;
@@ -361,7 +457,7 @@ class UserService {
       
       // First, try to create the bucket if it doesn't exist
       try {
-        const { data: bucketData, error: bucketError } = await supabase.storage
+        const { error: bucketError } = await supabase.storage
           .createBucket('user-photos', {
             public: true,
             allowedMimeTypes: ['image/*'],
@@ -376,7 +472,7 @@ class UserService {
       }
 
       // Now try to upload the file
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('user-photos')
         .upload(fileName, file);
 
@@ -397,11 +493,112 @@ class UserService {
     }
   }
 
+  // Get user statistics
+  async getUserStatistics(): Promise<{
+    totalUsers: number;
+    activeUsers: number;
+    inactiveUsers: number;
+    recentUsers: number;
+    departmentStats: Record<string, number>;
+    roleStats: Record<string, number>;
+  }> {
+    try {
+      const [totalResult, statusResult, recentResult, departmentResult, roleResult] = await Promise.all([
+        // Total users count
+        supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true }),
+        
+        // Status breakdown
+        supabase
+          .from('users')
+          .select('status', { count: 'exact' })
+          .eq('status', true),
+        
+        // Recent users (last 30 days)
+        supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+        
+        // Department breakdown
+        supabase
+          .from('users')
+          .select('department')
+          .eq('status', true),
+        
+        // Role breakdown
+        supabase
+          .from('users')
+          .select('role')
+          .eq('status', true)
+      ]);
+
+      const totalUsers = totalResult.count || 0;
+      const activeUsers = statusResult.count || 0;
+      const recentUsers = recentResult.count || 0;
+      
+      // Calculate department stats
+      const departmentStats: Record<string, number> = {};
+      departmentResult.data?.forEach(item => {
+        departmentStats[item.department] = (departmentStats[item.department] || 0) + 1;
+      });
+
+      // Calculate role stats
+      const roleStats: Record<string, number> = {};
+      roleResult.data?.forEach(item => {
+        roleStats[item.role] = (roleStats[item.role] || 0) + 1;
+      });
+
+      return {
+        totalUsers,
+        activeUsers,
+        inactiveUsers: totalUsers - activeUsers,
+        recentUsers,
+        departmentStats,
+        roleStats
+      };
+    } catch (error) {
+      console.error('Error getting user statistics:', error);
+      throw error;
+    }
+  }
+
+  // Search users with advanced filtering
+  async searchUsers(
+    searchTerm: string,
+    limit: number = 10
+  ): Promise<User[]> {
+    try {
+      if (!searchTerm.trim()) {
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, email, role, department, status, photo_url')
+        .or(`name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
+        .eq('status', true)
+        .order('name')
+        .limit(limit);
+
+      if (error) {
+        console.error('Error searching users:', error);
+        throw new Error(`Failed to search users: ${error.message}`);
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Error in searchUsers:', error);
+      throw error;
+    }
+  }
+
   // Import users from CSV
   async importUsersFromCSV(csvData: string, adminUserId: string): Promise<{ success: number; errors: string[] }> {
     try {
       const lines = csvData.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(',');
+      // const headers = lines[0].split(','); // Reserved for future field mapping
       const users = lines.slice(1);
       
       let successCount = 0;

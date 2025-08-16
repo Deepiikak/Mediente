@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   AppShell,
   Burger,
@@ -40,11 +40,7 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
-    loadCurrentUser();
-  }, []);
-
-  const loadCurrentUser = async () => {
+  const loadCurrentUser = useCallback(async () => {
     try {
       const currentUser = await authService.getCurrentUser();
       if (!currentUser) {
@@ -58,7 +54,11 @@ export default function AdminLayout() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    loadCurrentUser();
+  }, [loadCurrentUser]);
 
   const handleLogout = async () => {
     try {
@@ -70,6 +70,7 @@ export default function AdminLayout() {
       });
       navigate('/admin/login');
     } catch (error) {
+      console.error('Logout error:', error);
       notifications.show({
         title: 'Logout Error',
         message: 'Failed to logout. Please try again.',
@@ -184,13 +185,13 @@ export default function AdminLayout() {
             active={isActive('/admin/departments')}
             onClick={() => navigate('/admin/departments')}
           />
-          
+{/*           
           <NavLink
             label="Teams"
             leftSection={<IconUsersGroup size="1rem" />}
             active={isActive('/admin/teams')}
             onClick={() => navigate('/admin/teams')}
-          />
+          /> */}
           
           <NavLink
             label="Crew"

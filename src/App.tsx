@@ -7,7 +7,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminUserManagement from './pages/admin/AdminUserManagement';
 import AdminProjects from './pages/admin/AdminProjects';
 import AdminTeams from './pages/admin/AdminTeams';
-import AdminCrew from './pages/admin/AdminCrew';
+import AdminDepartments from './pages/admin/AdminDepartments';
 import AdminTemplate from './pages/admin/AdminTemplate';
 import AdminCallSheet from './pages/admin/AdminCallSheet';
 import './App.css'
@@ -33,13 +33,13 @@ function App() {
               <Route path="users" element={<AdminUserManagement />} />
               <Route path="projects" element={<AdminProjects />} />
               <Route path="teams" element={<AdminTeams />} />
-              <Route path="crew" element={<AdminCrew />} />
+              <Route path="departments" element={<AdminDepartments />} />
+              <Route path="crew" element={<AdminUserManagement />} />
               <Route path="templates" element={<AdminTemplate />} />
               <Route path="callsheet" element={<AdminCallSheet />} />
               
               {/* Other navigation routes - redirect to dashboard for now */}
               <Route path="calendar" element={<Navigate to="/admin/dashboard" replace />} />
-              <Route path="departments" element={<Navigate to="/admin/dashboard" replace />} />
               <Route path="settings" element={<Navigate to="/admin/dashboard" replace />} />
             </Route>
             {/* Catch all route */}

@@ -1,9 +1,7 @@
 import { Container, Title, Text, Group, Paper, SimpleGrid, Badge, Button, Avatar } from '@mantine/core';
-import AdminLayout from '../../components/AdminLayout';
 
 export default function AdminCrew() {
   return (
-    <AdminLayout>
       <Container size="xl">
         <Group justify="space-between" mb="xl">
           <div>
@@ -106,7 +104,7 @@ export default function AdminCrew() {
         {/* Sample Crew Members */}
         <Paper withBorder p="xl" radius="md" mt="xl">
           <Title order={3} mb="md">Featured Crew Members</Title>
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} gap="md">
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
             <Paper withBorder p="md" radius="md">
               <Group mb="md">
                 <Avatar size="lg" color="red">JD</Avatar>
@@ -145,6 +143,5 @@ export default function AdminCrew() {
           </SimpleGrid>
         </Paper>
       </Container>
-    </AdminLayout>
   );
 }
