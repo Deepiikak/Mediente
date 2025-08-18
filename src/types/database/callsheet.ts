@@ -151,6 +151,8 @@ export interface CallSheetListResponse {
   page: number;
   limit: number;
   has_more: boolean;
+  total_pages: number;
+  offset: number;
 }
 
 export interface CallSheetResponse {

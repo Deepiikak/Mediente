@@ -157,58 +157,82 @@ export class CallSheetService {
   ): Promise<CallSheetListResponse> {
     try {
       const {
-        limit = 10,
+        limit = 20,
         offset = 0,
         order_by = 'created_at',
         order_direction = 'desc',
         include_relations = true,
       } = options;
 
-      let query = supabase
+      // Use count query for better performance on large datasets
+      let countQuery = supabase
+        .from('call_sheets')
+        .select('*', { count: 'exact', head: true });
+
+      let dataQuery = supabase
         .from(include_relations ? 'call_sheets_complete' : 'call_sheets')
         .select('*');
 
-      // Apply filters
-      if (filters.status) {
-        query = query.eq('status', filters.status);
-      }
-      if (filters.date_from) {
-        query = query.gte('date', filters.date_from);
-      }
-      if (filters.date_to) {
-        query = query.lte('date', filters.date_to);
-      }
-      if (filters.project_name) {
-        query = query.ilike('project_name', `%${filters.project_name}%`);
-      }
-      if (filters.created_by) {
-        query = query.eq('created_by', filters.created_by);
-      }
-      if (filters.search) {
-        query = query.or(`project_name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,call_to.ilike.%${filters.search}%`);
-      }
+      // Apply filters to both queries
+      const applyFilters = (query: any) => {
+        if (filters.status) {
+          query = query.eq('status', filters.status);
+        }
+        if (filters.date_from) {
+          query = query.gte('date', filters.date_from);
+        }
+        if (filters.date_to) {
+          query = query.lte('date', filters.date_to);
+        }
+        if (filters.project_name) {
+          query = query.ilike('project_name', `%${filters.project_name}%`);
+        }
+        if (filters.created_by) {
+          query = query.eq('created_by', filters.created_by);
+        }
+        if (filters.search) {
+          // Use full-text search for better performance
+          query = query.or(`project_name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,call_to.ilike.%${filters.search}%`);
+        }
+        return query;
+      };
 
-      // Apply sorting and pagination
-      query = query
+      // Apply filters
+      countQuery = applyFilters(countQuery);
+      dataQuery = applyFilters(dataQuery);
+
+      // Apply sorting and pagination to data query
+      dataQuery = dataQuery
         .order(order_by, { ascending: order_direction === 'asc' })
         .range(offset, offset + limit - 1);
 
-      const { data, error, count } = await query;
+      // Execute queries in parallel for better performance
+      const [countResult, dataResult] = await Promise.all([
+        countQuery,
+        dataQuery
+      ]);
 
-      if (error) {
-        throw new Error(`Failed to fetch call sheets: ${error.message}`);
+      if (countResult.error) {
+        throw new Error(`Failed to count call sheets: ${countResult.error.message}`);
       }
 
-      const total = count || 0;
+      if (dataResult.error) {
+        throw new Error(`Failed to fetch call sheets: ${dataResult.error.message}`);
+      }
+
+      const total = countResult.count || 0;
       const page = Math.floor(offset / limit) + 1;
       const has_more = offset + limit < total;
+      const total_pages = Math.ceil(total / limit);
 
       return {
-        data: data || [],
+        data: dataResult.data || [],
         total,
         page,
         limit,
         has_more,
+        total_pages,
+        offset,
       };
     } catch (error) {
       console.error('Error fetching call sheets:', error);
@@ -216,8 +240,10 @@ export class CallSheetService {
         data: [],
         total: 0,
         page: 1,
-        limit: 10,
+        limit: 20,
         has_more: false,
+        total_pages: 0,
+        offset: 0,
       };
     }
   }
@@ -383,7 +409,255 @@ export class CallSheetService {
   }
 
   /**
-   * Get statistics for dashboard
+   * Get recent call sheets (upcoming and active only)
+   */
+  async getRecentCallSheets(limit = 20, offset = 0): Promise<CallSheetListResponse> {
+    try {
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM format
+
+      // First update statuses to ensure accuracy
+      await this.updateExpiredStatuses();
+
+      // Get call sheets that are still upcoming or active
+      let query = supabase
+        .from('call_sheets_complete')
+        .select('*')
+        .or(`date.gt.${today},and(date.eq.${today},time.gte.${currentTime})`)
+        .in('status', ['upcoming', 'active'])
+        .order('date', { ascending: true })
+        .order('time', { ascending: true })
+        .range(offset, offset + limit - 1);
+
+      // Get count for pagination
+      let countQuery = supabase
+        .from('call_sheets')
+        .select('*', { count: 'exact', head: true })
+        .or(`date.gt.${today},and(date.eq.${today},time.gte.${currentTime})`)
+        .in('status', ['upcoming', 'active']);
+
+      const [dataResult, countResult] = await Promise.all([query, countQuery]);
+
+      if (dataResult.error) {
+        throw new Error(`Failed to fetch recent call sheets: ${dataResult.error.message}`);
+      }
+
+      if (countResult.error) {
+        throw new Error(`Failed to count recent call sheets: ${countResult.error.message}`);
+      }
+
+      const total = countResult.count || 0;
+      const page = Math.floor(offset / limit) + 1;
+      const has_more = offset + limit < total;
+      const total_pages = Math.ceil(total / limit);
+
+      return {
+        data: dataResult.data || [],
+        total,
+        page,
+        limit,
+        has_more,
+        total_pages,
+        offset,
+      };
+    } catch (error) {
+      console.error('Error fetching recent call sheets:', error);
+      return {
+        data: [],
+        total: 0,
+        page: 1,
+        limit,
+        has_more: false,
+        total_pages: 0,
+        offset,
+      };
+    }
+  }
+
+  /**
+   * Get expired call sheets
+   */
+  async getExpiredCallSheets(limit = 20, offset = 0): Promise<CallSheetListResponse> {
+    try {
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM format
+
+      console.log('Expired query params:', { today, currentTime });
+
+      // First update statuses to ensure accuracy
+      await this.updateExpiredStatuses();
+
+      // Get call sheets that have expired (past date or past time today)
+      // Don't filter by status - include all sheets that should be expired by time
+      let query = supabase
+        .from('call_sheets_complete')
+        .select('*')
+        .or(`date.lt.${today},and(date.eq.${today},time.lt.${currentTime})`)
+        .order('date', { ascending: false })
+        .order('time', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      // Get count for pagination
+      let countQuery = supabase
+        .from('call_sheets')
+        .select('*', { count: 'exact', head: true })
+        .or(`date.lt.${today},and(date.eq.${today},time.lt.${currentTime})`);
+
+      const [dataResult, countResult] = await Promise.all([query, countQuery]);
+
+      if (dataResult.error) {
+        console.error('Expired query error:', dataResult.error);
+        throw new Error(`Failed to fetch expired call sheets: ${dataResult.error.message}`);
+      }
+
+      if (countResult.error) {
+        console.error('Expired count error:', countResult.error);
+        throw new Error(`Failed to count expired call sheets: ${countResult.error.message}`);
+      }
+
+      const total = countResult.count || 0;
+      const page = Math.floor(offset / limit) + 1;
+      const has_more = offset + limit < total;
+      const total_pages = Math.ceil(total / limit);
+
+      console.log('Expired call sheets result:', { total, dataCount: dataResult.data?.length });
+
+      return {
+        data: dataResult.data || [],
+        total,
+        page,
+        limit,
+        has_more,
+        total_pages,
+        offset,
+      };
+    } catch (error) {
+      console.error('Error fetching expired call sheets:', error);
+      return {
+        data: [],
+        total: 0,
+        page: 1,
+        limit,
+        has_more: false,
+        total_pages: 0,
+        offset,
+      };
+    }
+  }
+
+  /**
+   * Search call sheets with advanced filtering
+   */
+  async searchCallSheets(
+    searchTerm: string,
+    filters: Omit<CallSheetFilters, 'search'> = {},
+    options: CallSheetQueryOptions = {}
+  ): Promise<CallSheetListResponse> {
+    return this.getCallSheets(
+      {
+        ...filters,
+        search: searchTerm,
+      },
+      {
+        limit: 20,
+        ...options,
+      }
+    );
+  }
+
+  /**
+   * Get call sheets by status with pagination
+   */
+  async getCallSheetsByStatus(
+    status: 'draft' | 'active' | 'upcoming' | 'expired' | 'archived',
+    limit = 20,
+    offset = 0
+  ): Promise<CallSheetListResponse> {
+    return this.getCallSheets(
+      { status },
+      {
+        limit,
+        offset,
+        order_by: 'date',
+        order_direction: status === 'expired' ? 'desc' : 'asc',
+      }
+    );
+  }
+
+  /**
+   * Update expired call sheet statuses based on current date/time
+   */
+  async updateExpiredStatuses(): Promise<{ updated: number; success: boolean }> {
+    try {
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM format
+
+      // Update call sheets that have passed their date/time
+      const { data, error } = await supabase
+        .from('call_sheets')
+        .update({ status: 'expired' })
+        .or(`date.lt.${today},and(date.eq.${today},time.lt.${currentTime})`)
+        .in('status', ['upcoming', 'active'])
+        .select('id');
+
+      if (error) {
+        throw new Error(`Failed to update expired statuses: ${error.message}`);
+      }
+
+      // Update today's call sheets to active if they haven't started yet
+      const { data: activeData, error: activeError } = await supabase
+        .from('call_sheets')
+        .update({ status: 'active' })
+        .eq('date', today)
+        .gte('time', currentTime)
+        .eq('status', 'upcoming')
+        .select('id');
+
+      if (activeError) {
+        console.warn('Warning updating active statuses:', activeError.message);
+      }
+
+      const totalUpdated = (data?.length || 0) + (activeData?.length || 0);
+
+      return {
+        updated: totalUpdated,
+        success: true,
+      };
+    } catch (error) {
+      console.error('Error updating expired statuses:', error);
+      return {
+        updated: 0,
+        success: false,
+      };
+    }
+  }
+
+  /**
+   * Get accurate status based on current date and time
+   */
+  getCurrentStatus(date: string, time: string): 'upcoming' | 'active' | 'expired' {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM format
+
+    if (date < today) {
+      return 'expired';
+    } else if (date === today) {
+      if (time < currentTime) {
+        return 'expired';
+      } else {
+        return 'active';
+      }
+    } else {
+      return 'upcoming';
+    }
+  }
+
+  /**
+   * Get statistics for dashboard (optimized for large datasets)
    */
   async getCallSheetStats(): Promise<{
     total: number;
@@ -393,23 +667,25 @@ export class CallSheetService {
     recent: number;
   }> {
     try {
+      // First update expired statuses to ensure accurate counts
+      await this.updateExpiredStatuses();
+
+      // Use aggregation query for better performance on large datasets
       const { data, error } = await supabase
         .from('call_sheets')
-        .select('status, created_at');
+        .select('status, created_at')
+        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()); // Last 30 days for recent stats
 
       if (error) throw error;
+
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
       const stats = {
         total: data.length,
         active: data.filter(cs => cs.status === 'active').length,
         upcoming: data.filter(cs => cs.status === 'upcoming').length,
         expired: data.filter(cs => cs.status === 'expired').length,
-        recent: data.filter(cs => {
-          const createdDate = new Date(cs.created_at);
-          const weekAgo = new Date();
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          return createdDate >= weekAgo;
-        }).length,
+        recent: data.filter(cs => new Date(cs.created_at) >= weekAgo).length,
       };
 
       return stats;

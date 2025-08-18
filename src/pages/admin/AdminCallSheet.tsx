@@ -17,6 +17,7 @@ import {
   Alert,
   Loader,
   Center,
+  Pagination,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
@@ -130,20 +131,117 @@ export default function AdminCallSheet() {
   const [previewingCallSheet, setPreviewingCallSheet] = useState<CallSheetCompleteDB | null>(null);
   const [formLoading, setFormLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [pageSize] = useState(12); // Items per page
+  
+  // Tab counts for badges
+  const [recentCount, setRecentCount] = useState(0);
+  const [expiredCount, setExpiredCount] = useState(0);
+  const [countsLoading, setCountsLoading] = useState(false);
+  
   const [deleteModalOpened, { open: openDeleteModal, close: closeDeleteModal }] = useDisclosure(false);
   const [previewModalOpened, { open: openPreviewModal, close: closePreviewModal }] = useDisclosure(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
+  // Load tab counts for badges
+  const loadTabCounts = async () => {
+    setCountsLoading(true);
+    try {
+      const [recentResponse, expiredResponse] = await Promise.all([
+        callSheetService.getRecentCallSheets(1, 0), // Just get count
+        callSheetService.getExpiredCallSheets(1, 0), // Just get count
+      ]);
+      
+      console.log('Tab counts loaded:', { recent: recentResponse.total, expired: expiredResponse.total });
+      setRecentCount(recentResponse.total);
+      setExpiredCount(expiredResponse.total);
+    } catch (error) {
+      console.error('Error loading tab counts:', error);
+      // Set fallback counts
+      setRecentCount(0);
+      setExpiredCount(0);
+    } finally {
+      setCountsLoading(false);
+    }
+  };
+
   // Load call sheets from database
   useEffect(() => {
     loadCallSheets();
+    loadTabCounts();
+    
+    // Set up automatic refresh every 5 minutes to check for expired call sheets
+    const refreshInterval = setInterval(async () => {
+      try {
+        const result = await callSheetService.updateExpiredStatuses();
+        if (result.updated > 0) {
+          console.log(`Updated ${result.updated} call sheet statuses`);
+          
+          // Show notification about status changes
+          notifications.show({
+            title: 'Call Sheet Status Updated',
+            message: `${result.updated} call sheet${result.updated > 1 ? 's have' : ' has'} automatically changed status based on time.`,
+            color: 'blue',
+            autoClose: 5000,
+          });
+          
+          // Refresh the current view and counts to reflect status changes
+          loadCallSheets();
+          loadTabCounts();
+        }
+      } catch (error) {
+        console.error('Error in automatic status update:', error);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(refreshInterval);
   }, []);
 
-  const loadCallSheets = async () => {
+  // Reload when page changes
+  useEffect(() => {
+    if (currentPage > 1) {
+      loadCallSheets();
+    }
+  }, [currentPage]);
+
+  // Refresh counts when active tab changes
+  useEffect(() => {
+    if (activeTab === 'recent' || activeTab === 'expired') {
+      loadTabCounts();
+    }
+  }, [activeTab]);
+
+  const loadCallSheets = async (resetPagination = false) => {
     setDataLoading(true);
     try {
-      const response = await callSheetService.getCallSheets({}, { limit: 50, order_by: 'created_at', order_direction: 'desc' });
+      let response;
+      const offset = resetPagination ? 0 : (currentPage - 1) * pageSize;
+
+      if (activeTab === 'recent') {
+        response = await callSheetService.getRecentCallSheets(pageSize, offset);
+      } else if (activeTab === 'expired') {
+        response = await callSheetService.getExpiredCallSheets(pageSize, offset);
+      } else {
+        // Default case - shouldn't happen with current tab structure
+        response = await callSheetService.getCallSheets({}, { 
+          limit: pageSize, 
+          offset,
+          order_by: 'created_at',
+          order_direction: 'desc'
+        });
+      }
+
       setCallSheets(response.data);
+      setTotalPages(response.total_pages);
+      setTotalCount(response.total);
+      
+      if (resetPagination) {
+        setCurrentPage(1);
+      }
     } catch (error) {
       console.error('Error loading call sheets:', error);
       notifications.show({
@@ -195,6 +293,8 @@ export default function AdminCallSheet() {
         })),
       }));
       setCallSheets(convertedMockData);
+      setTotalPages(1);
+      setTotalCount(convertedMockData.length);
     } finally {
       setDataLoading(false);
     }
@@ -210,7 +310,8 @@ export default function AdminCallSheet() {
       
       if (response.success) {
         // Reload the data to get the complete call sheet with relations
-        await loadCallSheets();
+        await loadCallSheets(true);
+        await loadTabCounts();
         setActiveTab('recent');
         
         notifications.show({
@@ -250,6 +351,7 @@ export default function AdminCallSheet() {
       if (response.success) {
         // Reload the data to get the updated call sheet with relations
         await loadCallSheets();
+        await loadTabCounts();
         setActiveTab('recent');
         setEditingCallSheet(null);
         
@@ -287,6 +389,7 @@ export default function AdminCallSheet() {
       if (response.success) {
         // Reload the data to reflect the deletion
         await loadCallSheets();
+        await loadTabCounts();
         closeDeleteModal();
         setDeleteTargetId(null);
         
@@ -313,6 +416,30 @@ export default function AdminCallSheet() {
     openDeleteModal();
   };
 
+  // Tab change handler
+  const handleTabChange = (tab: string | null) => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+    // Load data for the new tab (counts will be refreshed by useEffect)
+    setTimeout(() => loadCallSheets(true), 0);
+  };
+
+  // Page change handler
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // Get real-time status for a call sheet
+  const getRealTimeStatus = (sheet: CallSheetCompleteDB) => {
+    return callSheetService.getCurrentStatus(sheet.date, sheet.time);
+  };
+
+  // Get status color based on real-time status
+  const getRealTimeStatusColor = (sheet: CallSheetCompleteDB) => {
+    const realTimeStatus = getRealTimeStatus(sheet);
+    return getStatusColor(realTimeStatus);
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'upcoming': return 'green';
@@ -324,21 +451,7 @@ export default function AdminCallSheet() {
     }
   };
 
-  const getRecentCallSheets = () => {
-    const today = new Date();
-    return callSheets.filter(sheet => {
-      const sheetDate = new Date(sheet.date);
-      return sheetDate >= today || sheet.status === 'upcoming' || sheet.status === 'active';
-    });
-  };
-
-  const getExpiredCallSheets = () => {
-    const today = new Date();
-    return callSheets.filter(sheet => {
-      const sheetDate = new Date(sheet.date);
-      return sheetDate < today || sheet.status === 'expired';
-    });
-  };
+  // Filtering is now handled by backend queries for better performance and accuracy
 
   return (
     <Container size="xl" py="md">
@@ -354,47 +467,51 @@ export default function AdminCallSheet() {
             </Text>
           </div>
           <Badge size="lg" color="blue" variant="light">
-            {callSheets.length} Call Sheets
+            {recentCount + expiredCount} Call Sheets
           </Badge>
-        </Group>
-
-        <Tabs value={activeTab} onChange={setActiveTab}>
-          <Tabs.List>
-            <Tabs.Tab value="recent" leftSection={<IconCalendar size={16} />}>
-              Recent Call Sheets
-              <Badge size="sm" color="green" ml="xs">
-                {getRecentCallSheets().length}
-              </Badge>
-            </Tabs.Tab>
-            <Tabs.Tab value="expired" leftSection={<IconClock size={16} />}>
-              Expired Call Sheets
-              <Badge size="sm" color="red" ml="xs">
-                {getExpiredCallSheets().length}
-              </Badge>
-            </Tabs.Tab>
-            <Tabs.Tab value="create" leftSection={<IconPlus size={16} />}>
-              Create Call Sheet
-            </Tabs.Tab>
-            {editingCallSheet && (
-              <Tabs.Tab value="edit" leftSection={<IconEdit size={16} />}>
-                Edit Call Sheet
-              </Tabs.Tab>
-            )}
-          </Tabs.List>
-
-          <Tabs.Panel value="recent" pt="md">
-            <Stack gap="md">
-              <Group justify="space-between">
-                <Text size="sm" c="dimmed">
-                  Manage your upcoming and active call sheets
-                </Text>
-                <Button
+          <Button
                   leftSection={<IconPlus size={16} />}
                   onClick={() => setActiveTab('create')}
                 >
                   Create Call Sheet
                 </Button>
-              </Group>
+        </Group>
+
+        <Tabs value={activeTab} onChange={handleTabChange}>
+          <Tabs.List>
+            <Tabs.Tab value="recent" leftSection={<IconCalendar size={16} />}>
+              Recent Call Sheets
+              <Badge size="sm" color="green" ml="xs">
+                {countsLoading ? '...' : recentCount}
+              </Badge>
+            </Tabs.Tab>
+            <Tabs.Tab value="expired" leftSection={<IconClock size={16} />}>
+              Expired Call Sheets
+              <Badge size="sm" color="red" ml="xs">
+                {countsLoading ? '...' : expiredCount}
+              </Badge>
+            </Tabs.Tab>
+           
+            
+          </Tabs.List>
+
+          <Tabs.Panel value="recent" pt="md">
+            <Stack gap="md">
+              <Text size="sm" c="dimmed">
+                Manage your upcoming and active call sheets
+              </Text>
+
+              {/* Summary for recent tab */}
+              <Paper p="md" withBorder>
+                <Group justify="space-between" align="center">
+                  <Text size="sm" c="dimmed">
+                    Upcoming & active call sheets
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    Showing {callSheets.length} of {totalCount} upcoming/active call sheets
+                  </Text>
+                </Group>
+              </Paper>
 
               {dataLoading ? (
                 <Center p="xl">
@@ -403,7 +520,7 @@ export default function AdminCallSheet() {
                     <Text c="dimmed">Loading call sheets...</Text>
                   </Stack>
                 </Center>
-              ) : getRecentCallSheets().length === 0 ? (
+              ) : callSheets.length === 0 ? (
                 <Paper p="xl" ta="center">
                   <IconCalendar size={48} color="gray" />
                   <Title order={3} c="dimmed" mt="md">
@@ -420,13 +537,14 @@ export default function AdminCallSheet() {
                   </Button>
                 </Paper>
               ) : (
-                <Grid>
-                  {getRecentCallSheets().map((callSheet) => (
+                <>
+                  <Grid>
+                    {callSheets.map((callSheet) => (
                     <Grid.Col key={callSheet.id} span={{ base: 12, md: 6, lg: 4 }}>
                       <Card shadow="sm" p="lg" radius="md" withBorder>
                         <Group justify="space-between" mb="md">
-                          <Badge color={getStatusColor(callSheet.status)} variant="light">
-                            {callSheet.status.toUpperCase()}
+                          <Badge color={getRealTimeStatusColor(callSheet)} variant="light">
+                            {getRealTimeStatus(callSheet).toUpperCase()}
                           </Badge>
                           <Menu shadow="md" width={200}>
                             <Menu.Target>
@@ -507,25 +625,43 @@ export default function AdminCallSheet() {
                         </Group>
                       </Card>
                     </Grid.Col>
-                  ))}
-                </Grid>
+                    ))}
+                  </Grid>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <Group justify="center" mt="xl">
+                      <Pagination
+                        value={currentPage}
+                        onChange={handlePageChange}
+                        total={totalPages}
+                        size="md"
+                        withEdges
+                      />
+                    </Group>
+                  )}
+                </>
               )}
             </Stack>
           </Tabs.Panel>
 
           <Tabs.Panel value="expired" pt="md">
             <Stack gap="md">
-              <Group justify="space-between">
-                <Text size="sm" c="dimmed">
-                  View past call sheets and archived productions
-                </Text>
-                <Button
-                  leftSection={<IconPlus size={16} />}
-                  onClick={() => setActiveTab('create')}
-                >
-                  Create New Call Sheet
-                </Button>
-              </Group>
+              <Text size="sm" c="dimmed">
+                View past call sheets and archived productions
+              </Text>
+
+              {/* Summary for expired tab */}
+              <Paper p="md" withBorder>
+                <Group justify="space-between" align="center">
+                  <Text size="sm" c="dimmed">
+                    Expired call sheets (past date/time)
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    Showing {callSheets.length} of {totalCount} expired call sheets
+                  </Text>
+                </Group>
+              </Paper>
 
               {dataLoading ? (
                 <Center p="xl">
@@ -534,7 +670,7 @@ export default function AdminCallSheet() {
                     <Text c="dimmed">Loading call sheets...</Text>
                   </Stack>
                 </Center>
-              ) : getExpiredCallSheets().length === 0 ? (
+              ) : callSheets.length === 0 ? (
                 <Paper p="xl" ta="center">
                   <IconClock size={48} color="gray" />
                   <Title order={3} c="dimmed" mt="md">
@@ -545,13 +681,14 @@ export default function AdminCallSheet() {
                   </Text>
                 </Paper>
               ) : (
-                <Grid>
-                  {getExpiredCallSheets().map((callSheet) => (
+                <>
+                  <Grid>
+                    {callSheets.map((callSheet) => (
                     <Grid.Col key={callSheet.id} span={{ base: 12, md: 6, lg: 4 }}>
                       <Card shadow="sm" p="lg" radius="md" withBorder opacity={0.8}>
                         <Group justify="space-between" mb="md">
-                          <Badge color={getStatusColor(callSheet.status)} variant="light">
-                            {callSheet.status.toUpperCase()}
+                          <Badge color={getRealTimeStatusColor(callSheet)} variant="light">
+                            {getRealTimeStatus(callSheet).toUpperCase()}
                           </Badge>
                           <Menu shadow="md" width={200}>
                             <Menu.Target>
@@ -626,8 +763,22 @@ export default function AdminCallSheet() {
                         </Group>
                       </Card>
                     </Grid.Col>
-                  ))}
-                </Grid>
+                    ))}
+                  </Grid>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <Group justify="center" mt="xl">
+                      <Pagination
+                        value={currentPage}
+                        onChange={handlePageChange}
+                        total={totalPages}
+                        size="md"
+                        withEdges
+                      />
+                    </Group>
+                  )}
+                </>
               )}
             </Stack>
           </Tabs.Panel>
