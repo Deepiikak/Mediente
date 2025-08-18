@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Container,
   Title,
@@ -17,6 +17,7 @@ import {
   Select,
   Box,
 } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertCircle,
@@ -24,12 +25,12 @@ import {
   IconSearch,
   IconArchive,
 } from "@tabler/icons-react";
-import { useNavigate } from "react-router-dom";
-import userService from "../../services/userService";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import userService, { type PaginatedResponse } from "../../services/userService";
 import authService from "../../services/authService";
-import type { User } from "../../types/userManagement";
+import type { User, UserFilters } from "../../types/userManagement";
 import type { AdminUser as AuthAdminUser } from "../../types/auth";
-// import UserFormModal from "../../UserFormModal";
+import UserFormModal from "../../components/UserFormModal";
 import ConfirmationDialog from "../../components/ConfirmationDialog";
 
 export default function AdminUserManagement() {
@@ -38,28 +39,73 @@ export default function AdminUserManagement() {
   const [adminUser, setAdminUser] = useState<AuthAdminUser | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [filters, setFilters] = useState<any>({});
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch] = useDebouncedValue(searchInput, 500);
+  const [filters, setFilters] = useState<UserFilters>({
+    search: '',
+    role: 'all',
+    department: 'all',
+    status: 'all'
+  });
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20); // Configurable page size
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isViewMode, setIsViewMode] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [confirmationData, setConfirmationData] = useState<any>({});
+  const [confirmationData, setConfirmationData] = useState<{
+    type?: string;
+    title?: string;
+    message?: string;
+    user?: User;
+    bulkAction?: { action: string; count: number };
+  }>({});
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [statistics, setStatistics] = useState<{
+    totalUsers: number;
+    activeUsers: number;
+    inactiveUsers: number;
+    recentUsers: number;
+    departmentStats: Record<string, number>;
+    roleStats: Record<string, number>;
+  } | null>(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const loadUsers = useCallback(async () => {
+    try {
+      setError(null);
+      
+      const response: PaginatedResponse<User> = await userService.getUsers(
+        currentPage,
+        pageSize,
+        filters
+      );
 
-  const loadData = async () => {
+      setUsers(response.data);
+      setTotalPages(response.totalPages);
+      setTotalCount(response.count);
+      
+      // Clear selected users when data changes
+      setSelectedUsers([]);
+    } catch (error) {
+      console.error("Error loading users:", error);
+      setError(error instanceof Error ? error.message : "Failed to load users");
+    }
+  }, [currentPage, pageSize, filters]);
+
+  const loadInitialData = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Load admin user and users in parallel
-      const [currentAdminUser, usersData] = await Promise.all([
+      // Load admin user, departments, and statistics in parallel
+      const [currentAdminUser, departmentsData, statsData] = await Promise.all([
         authService.getCurrentUser(),
-        userService.getUsers(),
+        userService.getDepartments(),
+        userService.getUserStatistics(),
       ]);
 
       if (!currentAdminUser) {
@@ -68,9 +114,27 @@ export default function AdminUserManagement() {
       }
 
       setAdminUser(currentAdminUser);
-      setUsers(usersData);
+      setDepartments(departmentsData.map(d => d.name));
+      setStatistics(statsData);
+      
+      // Check for URL parameters and set initial filters
+      const urlDepartment = searchParams.get('department');
+      const urlRole = searchParams.get('role');
+      const urlStatus = searchParams.get('status');
+      
+      if (urlDepartment || urlRole || urlStatus) {
+        setFilters(prev => ({
+          ...prev,
+          department: urlDepartment || prev.department,
+          role: (urlRole as UserFilters['role']) || prev.role,
+          status: (urlStatus as UserFilters['status']) || prev.status,
+        }));
+      }
+      
+      // Load initial users
+      await loadUsers();
     } catch (error) {
-      console.error("Error loading data:", error);
+      console.error("Error loading initial data:", error);
       setError(error instanceof Error ? error.message : "Failed to load data");
 
       if (
@@ -83,10 +147,32 @@ export default function AdminUserManagement() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [navigate, loadUsers, searchParams]);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  useEffect(() => {
+    setFilters(prev => ({ ...prev, search: debouncedSearch }));
+    setCurrentPage(1);
+  }, [debouncedSearch]);
 
   const handleRefresh = () => {
-    loadData();
+    loadUsers();
+  };
+
+  const handleFilterChange = (newFilters: Partial<UserFilters>) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+    setCurrentPage(1); // Reset to first page when filtering
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
   };
 
   // Handle user selection
@@ -154,14 +240,14 @@ export default function AdminUserManagement() {
   // Execute confirmation action
   const executeConfirmationAction = async () => {
     try {
-      if (confirmationData.type === "delete") {
+      if (confirmationData.type === "delete" && confirmationData.user) {
         await userService.deleteUser(confirmationData.user.id, adminUser!.id);
         notifications.show({
           title: "Success",
           message: `User ${confirmationData.user.name} has been archived.`,
           color: "green",
         });
-      } else if (confirmationData.type === "bulkAction") {
+      } else if (confirmationData.type === "bulkAction" && confirmationData.bulkAction) {
         await userService.bulkUpdateUsers(
           {
             userIds: selectedUsers,
@@ -176,7 +262,7 @@ export default function AdminUserManagement() {
           color: "green",
         });
       }
-      onRefresh();
+      await loadUsers();
       setShowConfirmation(false);
     } catch (error) {
       console.error("Error in confirmation action:", error);
@@ -189,31 +275,10 @@ export default function AdminUserManagement() {
   };
 
   const onRefresh = () => {
-    loadData();
+    loadUsers();
   };
 
-  // Calculate statistics
-  const stats = {
-    totalUsers: users.length,
-    activeUsers: users.filter((user) => user.status).length,
-    inactiveUsers: users.filter((user) => !user.status).length,
-    hodCount: users.filter((user) => user.role === "HOD").length,
-    associateCount: users.filter((user) => user.role === "Associate").length,
-    crewCount: users.filter((user) => user.role === "Crew").length,
-  };
 
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case "HOD":
-        return "red";
-      case "Associate":
-        return "blue";
-      case "Crew":
-        return "green";
-      default:
-        return "gray";
-    }
-  };
 
   if (isLoading) {
     return (
@@ -271,12 +336,19 @@ export default function AdminUserManagement() {
         <Group justify="space-between" align="center">
           <div>
             <Title order={1} mb="xs">
-              Management Team
+              User Management
             </Title>
+            <Text c="dimmed">
+              {totalCount > 0 && `${totalCount} total users`}
+              {statistics && ` • ${statistics.activeUsers} active • ${statistics.inactiveUsers} inactive`}
+            </Text>
           </div>
           <Group>
             <Button variant="outline" color="blue">
-              Archived Users
+              Export CSV
+            </Button>
+            <Button variant="outline" color="blue">
+              Archived Users ({statistics?.inactiveUsers || 0})
             </Button>
             <Button color="blue" onClick={() => setShowUserModal(true)}>
               + Add User
@@ -284,40 +356,124 @@ export default function AdminUserManagement() {
           </Group>
         </Group>
 
+        {/* Statistics Cards */}
+        {statistics && (
+          <Group grow mb="xl">
+            <Paper withBorder p="md" radius="md">
+              <Group justify="space-between">
+                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                  Total Users
+                </Text>
+                <Text size="1.4rem">👥</Text>
+              </Group>
+              <Text fw={700} size="xl" mt="md">
+                {statistics.totalUsers}
+              </Text>
+              <Text c="blue" size="sm" mt="xs">
+                All registered users
+              </Text>
+            </Paper>
+
+            <Paper withBorder p="md" radius="md">
+              <Group justify="space-between">
+                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                  Active Users
+                </Text>
+                <Text size="1.4rem">✅</Text>
+              </Group>
+              <Text fw={700} size="xl" mt="md">
+                {statistics.activeUsers}
+              </Text>
+              <Text c="green" size="sm" mt="xs">
+                Currently active
+              </Text>
+            </Paper>
+
+            <Paper withBorder p="md" radius="md">
+              <Group justify="space-between">
+                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                  Recent Users
+                </Text>
+                <Text size="1.4rem">🆕</Text>
+              </Group>
+              <Text fw={700} size="xl" mt="md">
+                {statistics.recentUsers}
+              </Text>
+              <Text c="orange" size="sm" mt="xs">
+                Last 30 days
+              </Text>
+            </Paper>
+
+            <Paper withBorder p="md" radius="md">
+              <Group justify="space-between">
+                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                  Departments
+                </Text>
+                <Text size="1.4rem">🏢</Text>
+              </Group>
+              <Text fw={700} size="xl" mt="md">
+                {Object.keys(statistics.departmentStats).length}
+              </Text>
+              <Text c="purple" size="sm" mt="xs">
+                Active departments
+              </Text>
+            </Paper>
+          </Group>
+        )}
+
         {/* Search and Filters */}
         <Group gap="md">
           <TextInput
             placeholder="Search by name or email..."
             leftSection={<IconSearch size={16} />}
             style={{ flex: 1 }}
-            value={filters.search || ""}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
           <Select
             placeholder="All Roles"
             data={[
               { value: "all", label: "All Roles" },
-              { value: "Admin", label: "Admin" },
               { value: "HOD", label: "HOD" },
               { value: "Associate", label: "Associate" },
               { value: "Crew", label: "Crew" },
             ]}
             value={filters.role || "all"}
-            onChange={(value) => setFilters({ ...filters, role: value })}
+            onChange={(value) => handleFilterChange({ role: value as UserFilters['role'] })}
             style={{ minWidth: "150px" }}
           />
           <Select
             placeholder="All Departments"
             data={[
               { value: "all", label: "All Departments" },
-              { value: "Film", label: "Film" },
-              { value: "Talent", label: "Talent" },
-              { value: "Location", label: "Location" },
+              ...departments.map(dept => ({ value: dept, label: dept }))
             ]}
             value={filters.department || "all"}
-            onChange={(value) => setFilters({ ...filters, department: value })}
+            onChange={(value) => handleFilterChange({ department: value || "all" })}
             style={{ minWidth: "180px" }}
+            searchable
           />
+          <Select
+            placeholder="All Status"
+            data={[
+              { value: "all", label: "All Status" },
+              { value: "true", label: "Active" },
+              { value: "false", label: "Inactive" },
+            ]}
+            value={filters.status?.toString() || "all"}
+            onChange={(value) => {
+              const status = value === "all" ? "all" : value === "true";
+              handleFilterChange({ status: status as UserFilters['status'] });
+            }}
+            style={{ minWidth: "120px" }}
+          />
+          <Button 
+            variant="outline" 
+            leftSection={<IconRefresh size={16} />}
+            onClick={handleRefresh}
+          >
+            Refresh
+          </Button>
         </Group>
 
         {/* Table Controls */}
@@ -341,7 +497,19 @@ export default function AdminUserManagement() {
 
         {/* Users Table */}
         <Paper withBorder>
-          <Table>
+          <LoadingOverlay visible={isLoading && users.length === 0} />
+          
+          {users.length === 0 && !isLoading ? (
+            <Stack align="center" py="xl">
+              <Text size="lg" c="dimmed">No users found</Text>
+              <Text size="sm" c="dimmed">Try adjusting your search filters or add new users</Text>
+              <Button onClick={() => setShowUserModal(true)}>
+                Add First User
+              </Button>
+            </Stack>
+          ) : (
+            <>
+            <Table>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th style={{ width: "50px" }}>
@@ -452,24 +620,29 @@ export default function AdminUserManagement() {
                 </Table.Tr>
               ))}
             </Table.Tbody>
-          </Table>
+            </Table>
 
-          {/* Pagination */}
-          <Group justify="center" p="md">
-            <Text size="sm" c="dimmed">
-              Showing 1-{Math.min(10, users.length)} of {users.length}
-            </Text>
-            <Pagination
-              total={Math.ceil(users.length / 10)}
-              value={currentPage}
-              onChange={setCurrentPage}
-              size="sm"
-            />
-          </Group>
+            {/* Pagination */}
+            <Group justify="space-between" p="md">
+              <Text size="sm" c="dimmed">
+                Showing {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalCount)} of {totalCount} users
+              </Text>
+              {totalPages > 1 && (
+                <Pagination
+                  total={totalPages}
+                  value={currentPage}
+                  onChange={handlePageChange}
+                  size="sm"
+                  withEdges
+                />
+              )}
+            </Group>
+            </>
+          )}
         </Paper>
 
         {/* Modals */}
-        {/* <UserFormModal
+        <UserFormModal
           opened={showUserModal}
           onClose={() => {
             setShowUserModal(false);
@@ -485,13 +658,17 @@ export default function AdminUserManagement() {
             setIsViewMode(false);
           }}
           adminUserId={adminUser?.id || ""}
-        /> */}
+        />
 
         <ConfirmationDialog
           opened={showConfirmation}
           onClose={() => setShowConfirmation(false)}
-          {...confirmationData}
+          type={confirmationData.type as 'delete' | 'roleChange' | 'bulkAction' || 'delete'}
+          title={confirmationData.title || 'Confirm Action'}
+          message={confirmationData.message || 'Are you sure?'}
           onConfirm={executeConfirmationAction}
+          user={confirmationData.user}
+          bulkAction={confirmationData.bulkAction}
         />
       </Stack>
     </Container>
