@@ -7,7 +7,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminUserManagement from './pages/admin/AdminUserManagement';
 import AdminProjects from './pages/admin/AdminProjects';
 import AdminTeams from './pages/admin/AdminTeams';
-import AdminDepartments from './pages/admin/AdminDepartments';
+import { AdminDepartmentManagementPage } from './pages/admin/AdminDepartments';
 import AdminTemplate from './pages/admin/AdminTemplate';
 import AdminCallSheet from './pages/admin/AdminCallSheet';
 import './App.css'
@@ -33,7 +33,7 @@ function App() {
               <Route path="users" element={<AdminUserManagement />} />
               <Route path="projects" element={<AdminProjects />} />
               <Route path="teams" element={<AdminTeams />} />
-              <Route path="departments" element={<AdminDepartments />} />
+              <Route path="departments" element={<AdminDepartmentManagementPage />} />
               <Route path="crew" element={<AdminUserManagement />} />
               <Route path="templates" element={<AdminTemplate />} />
               <Route path="callsheet" element={<AdminCallSheet />} />
