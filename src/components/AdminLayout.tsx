@@ -24,9 +24,10 @@ import {
   IconCalendar,
   IconFiles,
   IconBuilding,
-  IconUsersGroup,
+
   IconSettings2,
-  IconClipboardList
+  IconClipboardList,
+  IconHierarchy
 } from '@tabler/icons-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import authService from '../services/authService';
@@ -184,6 +185,13 @@ export default function AdminLayout() {
             leftSection={<IconBuilding size="1rem" />}
             active={isActive('/admin/departments')}
             onClick={() => navigate('/admin/departments')}
+          />
+          
+          <NavLink
+            label="Department Roles"
+            leftSection={<IconHierarchy size="1rem" />}
+            active={isActive('/admin/roles')}
+            onClick={() => navigate('/admin/roles')}
           />
 {/*           
           <NavLink

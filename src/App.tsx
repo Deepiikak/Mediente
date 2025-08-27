@@ -8,13 +8,15 @@ import AdminUserManagement from './pages/admin/AdminUserManagement';
 import AdminProjects from './pages/admin/AdminProjects';
 import AdminTeams from './pages/admin/AdminTeams';
 import { AdminDepartmentManagementPage } from './pages/admin/AdminDepartments';
-import AdminTemplate from './pages/admin/AdminTemplate';
+
 import AdminCallSheet from './pages/admin/AdminCallSheet';
+import AdminRoles from './pages/admin/AdminRoles';
 import './App.css'
 // Import Mantine styles
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import AdminLayout from './components/AdminLayout';
+import TemplatesPage from './pages/admin/templatesPage';
 
 function App() {
   return (
@@ -34,8 +36,9 @@ function App() {
               <Route path="projects" element={<AdminProjects />} />
               <Route path="teams" element={<AdminTeams />} />
               <Route path="departments" element={<AdminDepartmentManagementPage />} />
+              <Route path="roles" element={<AdminRoles />} />
               <Route path="crew" element={<AdminUserManagement />} />
-              <Route path="templates" element={<AdminTemplate />} />
+              <Route path="templates" element={<TemplatesPage />} />
               <Route path="callsheet" element={<AdminCallSheet />} />
               
               {/* Other navigation routes - redirect to dashboard for now */}

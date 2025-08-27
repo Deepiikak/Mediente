@@ -26,14 +26,14 @@ import {
   IconList,
   IconCalendarTime,
 } from '@tabler/icons-react';
-import { TemplateForm } from '../../components/TemplateForm';
-import { PhaseForm } from '../../components/PhaseForm';
-import { StepForm } from '../../components/StepForm';
-import { DraggableStepTree } from '../../components/DraggableStepTree';
-import { DraggablePhaseList } from '../../components/DraggablePhaseList';
-import { GanttChartView } from '../../components/GanttChartView';
-import ConfirmationDialog from '../../components/GenericConfirmationDialog';
-import templateService from '../../services/templateService';
+import { TemplateForm } from './TemplateForm';
+import { PhaseForm } from './PhaseForm';
+import { StepForm } from './StepForm';
+import { DraggableStepTree } from './DraggableStepTree';
+import { DraggablePhaseList } from './DraggablePhaseList';
+import { GanttChartView } from './GanttChartView';
+import ConfirmationDialog from '../components/GenericConfirmationDialog';
+import templateService from '../services/templateService';
 import type { 
   templateType, 
   phaseType, 
@@ -42,7 +42,7 @@ import type {
   CreatePhaseData,
   CreateStepData,
   TemplateWorkflowState
-  } from '../../types/adminTemplates';
+  } from '../types/adminTemplates';
 
 type ViewMode = 'list' | 'gantt';
   

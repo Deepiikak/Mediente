@@ -1,4 +1,5 @@
-import { Modal, TextInput, Textarea, Button, Group, Stack, Switch, Text } from '@mantine/core';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { Modal, TextInput, Textarea, Button, Group, Stack, Text } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { useEffect } from 'react';
@@ -165,7 +166,7 @@ export function AdminDepartmentFormModal({
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" loading={form.isSubmitting}>
+            <Button type="submit" loading={form.submitting}>
               {isEditing ? 'Update' : 'Save'}
             </Button>
           </Group>

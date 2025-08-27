@@ -1,13 +1,35 @@
 export type categoryType = "monitor" | "coordinate" | "execute";
 
+export type projectChecklistType = {
+  id: string;
+  index: number;
+  name: string;
+  description?: string;
+};
+
+export type projectTaskType = {
+  id: string;
+  index: number;
+  name: string;
+  category: categoryType;
+  owner: string; // role id
+  assigned_to: string[]; // role ids
+  duration: number; // in days
+  status: 'pending' | 'in_progress' | 'completed';
+  priority: 'low' | 'medium' | 'high';
+  dependencies: string[]; // task ids
+  subtasks: projectTaskType[];
+  description?: string;
+  checklists?: projectChecklistType[];
+
+};
+
 export type projectStepType = {
   id: string;
   index: number;
   name: string;
   category: categoryType;
   description?: string;
-  metadata?: Record<string, unknown>;
-  steps?: projectStepType[];
 };
 
 export type phaseType = {
@@ -27,45 +49,8 @@ export type templateType = {
   phases: phaseType[];
   created_at: Date;
   updated_at?: Date;
+  created_by: string; // created user id
+  updated_by: string; // current user id
 };
 
-// ==================== FORM TYPES ====================
 
-// Step-by-step creation types
-export type CreateTemplateData = {
-  name: string;
-  description?: string;
-  status?: 'active' | 'inactive' | 'archived';
-};
-
-export type CreatePhaseData = {
-  name: string;
-  description?: string;
-};
-
-export type CreateStepData = {
-  name: string;
-  category: categoryType;
-  description?: string;
-  metadata?: Record<string, unknown>;
-  parentStepId?: string;
-};
-
-// Update types
-export type UpdateTemplateData = Partial<CreateTemplateData>;
-export type UpdatePhaseData = Partial<CreatePhaseData>;
-export type UpdateStepData = Partial<CreateStepData>;
-
-// Legacy form type for compatibility
-export type templateFormType = Omit<templateType, 'id' | 'created_at' | 'updated_at'>;
-
-// UI State types
-export type TemplateEditMode = 'view' | 'edit-template' | 'add-phase' | 'edit-phase' | 'add-step' | 'edit-step';
-
-export type TemplateWorkflowState = {
-  currentTemplate: templateType | null;
-  currentPhase: phaseType | null;
-  currentStep: projectStepType | null;
-  mode: TemplateEditMode;
-  isLoading: boolean;
-};

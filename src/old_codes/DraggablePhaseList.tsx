@@ -63,15 +63,14 @@ function DraggablePhase({
   return (
     <Card
       ref={setNodeRef}
-      style={style}
+      style={{
+        backgroundColor: isDragging ? 'blue.0' : undefined,
+        border: isDragging ? `1px dashed blue.0` : undefined,
+        boxShadow: isDragging ? 'sm' : undefined,
+        ...style}}
       {...attributes}
       withBorder
       p="md"
-      sx={(theme) => ({
-        backgroundColor: isDragging ? theme.colors.blue[0] : undefined,
-        border: isDragging ? `1px dashed ${theme.colors.blue[4]}` : undefined,
-        boxShadow: isDragging ? theme.shadows.sm : undefined,
-      })}
     >
       <Group justify="space-between" mb="md">
         <Group gap="xs" style={{ flex: 1 }}>
