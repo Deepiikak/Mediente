@@ -6,8 +6,7 @@ import {
   Button,
   Group,
   Stack,
-  Title,
-  NumberInput
+  Title
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import type { TemplatePhase, CreateTemplatePhaseRequest, UpdateTemplatePhaseRequest } from '../types/templates';
@@ -30,8 +29,7 @@ export default function PhaseFormModal({
 }: PhaseFormModalProps) {
   const [formData, setFormData] = useState({
     phase_name: '',
-    description: '',
-    phase_order: 1
+    description: ''
   });
   const [loading, setLoading] = useState(false);
 
@@ -41,14 +39,12 @@ export default function PhaseFormModal({
     if (phase) {
       setFormData({
         phase_name: phase.phase_name,
-        description: phase.description || '',
-        phase_order: phase.phase_order
+        description: phase.description || ''
       });
     } else {
       setFormData({
         phase_name: '',
-        description: '',
-        phase_order: 1
+        description: ''
       });
     }
   }, [phase]);
@@ -71,8 +67,7 @@ export default function PhaseFormModal({
       if (isEditing && phase) {
         const updateData: UpdateTemplatePhaseRequest = {
           phase_name: formData.phase_name.trim(),
-          description: formData.description.trim() || undefined,
-          phase_order: formData.phase_order
+          description: formData.description.trim() || undefined
         };
         
         await templatePhaseService.update(phase.phase_id, updateData);
@@ -85,8 +80,7 @@ export default function PhaseFormModal({
         const createData: CreateTemplatePhaseRequest = {
           template_id: templateId,
           phase_name: formData.phase_name.trim(),
-          description: formData.description.trim() || undefined,
-          phase_order: formData.phase_order
+          description: formData.description.trim() || undefined
         };
         
         await templatePhaseService.create(createData);
@@ -149,17 +143,7 @@ export default function PhaseFormModal({
             maxLength={1000}
           />
 
-          <NumberInput
-            label="Phase Order"
-            placeholder="Enter phase order"
-            value={formData.phase_order}
-            onChange={(value) => setFormData(prev => ({ 
-              ...prev, 
-              phase_order: value || 1
-            }))}
-            min={1}
-            required
-          />
+
 
           <Group justify="flex-end">
             <Button variant="outline" onClick={onClose}>

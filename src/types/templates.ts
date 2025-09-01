@@ -35,6 +35,14 @@ export interface PhaseStep {
   updated_at: string;
 }
 
+export type TaskCategoryType = "monitor" | "coordinate" | "execute";
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  order: number;
+}
+
 export interface StepTask {
   task_id: string;
   step_id: string;
@@ -43,11 +51,14 @@ export interface StepTask {
   task_order: number;
   estimated_hours?: number;
   assigned_role_id?: string;
+  category?: TaskCategoryType;
+  checklist_items?: ChecklistItem[];
   is_archived: boolean;
   created_by: string;
   updated_by?: string;
   created_at: string;
   updated_at: string;
+  parent_task_id?: string;
 }
 
 // Form interfaces for creating/updating
@@ -97,6 +108,9 @@ export interface CreateStepTaskRequest {
   task_order?: number;
   estimated_hours?: number;
   assigned_role_id?: string;
+  parent_task_id?: string;
+  category?: TaskCategoryType;
+  checklist_items?: ChecklistItem[];
 }
 
 export interface UpdateStepTaskRequest {
@@ -105,6 +119,9 @@ export interface UpdateStepTaskRequest {
   task_order?: number;
   estimated_hours?: number;
   assigned_role_id?: string;
+  parent_task_id?: string;
+  category?: TaskCategoryType;
+  checklist_items?: ChecklistItem[];
   is_archived?: boolean;
 }
 
@@ -143,6 +160,8 @@ export interface TaskFilters {
   search?: string;
   step_id?: string;
   assigned_role_id?: string;
+  parent_task_id?: string;
+  category?: TaskCategoryType;
   is_archived?: boolean;
 }
 

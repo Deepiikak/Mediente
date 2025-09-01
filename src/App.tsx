@@ -5,7 +5,6 @@ import { AuthProvider } from './hooks/useAuth';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminUserManagement from './pages/admin/AdminUserManagement';
-import AdminProjects from './pages/admin/AdminProjects';
 import AdminTeams from './pages/admin/AdminTeams';
 import { AdminDepartmentManagementPage } from './pages/admin/AdminDepartments';
 
@@ -15,8 +14,11 @@ import './App.css'
 // Import Mantine styles
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
+import '@mantine/dates/styles.css';
 import AdminLayout from './components/AdminLayout';
 import TemplatesPage from './pages/admin/templatesPage';
+import Projects from './pages/admin/projects';
+import ProjectDetail from './pages/admin/ProjectDetail';
 
 function App() {
   return (
@@ -33,7 +35,8 @@ function App() {
             <Route path="/admin" element={<AdminLayout />}>
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="users" element={<AdminUserManagement />} />
-              <Route path="projects" element={<AdminProjects />} />
+              <Route path="projects" element={<Projects />} />
+              <Route path="projects/:projectId" element={<ProjectDetail />} />
               <Route path="teams" element={<AdminTeams />} />
               <Route path="departments" element={<AdminDepartmentManagementPage />} />
               <Route path="roles" element={<AdminRoles />} />

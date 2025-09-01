@@ -11,7 +11,6 @@ import {
   Stack,
   Breadcrumbs,
   Anchor,
-  Badge,
   Loader,
   Center
 } from '@mantine/core';
@@ -44,6 +43,7 @@ import PhaseFormModal from '../../components/PhaseFormModal';
 import StepFormModal from '../../components/StepFormModal';
 import TaskFormModal from '../../components/TaskFormModal';
 import GenericConfirmationDialog from '../../components/GenericConfirmationDialog';
+import { DraggablePhasesList, DraggableStepsList, DraggableTasksList } from '../../components/DraggableTemplateList';
 
 type ViewLevel = 'templates' | 'phases' | 'steps' | 'tasks';
 
@@ -73,6 +73,7 @@ export default function TemplatesPage() {
   const [editingPhase, setEditingPhase] = useState<TemplatePhase | undefined>();
   const [editingStep, setEditingStep] = useState<PhaseStep | undefined>();
   const [editingTask, setEditingTask] = useState<StepTask | undefined>();
+  const [parentTaskId, setParentTaskId] = useState<string | undefined>();
   const [itemToDelete, setItemToDelete] = useState<{ type: ViewLevel; id: string; name: string } | null>(null);
 
   const loadData = useCallback(async () => {
@@ -292,15 +293,107 @@ export default function TemplatesPage() {
     return role ? `${role.role_name}` : 'Unknown Role';
   };
 
+  // Reorder handlers
+  const handleReorderPhases = async (reorderedPhases: TemplatePhase[]) => {
+    try {
+      const currentTemplate = breadcrumbs.find(b => b.type === 'template');
+      if (!currentTemplate) return;
+
+      const phaseOrders = reorderedPhases.map(phase => ({
+        phase_id: phase.phase_id,
+        phase_order: phase.phase_order
+      }));
+
+      await templatePhaseService.reorder(currentTemplate.id, phaseOrders);
+      setPhases(reorderedPhases);
+      
+      notifications.show({
+        title: 'Success',
+        message: 'Phases reordered successfully',
+        color: 'green'
+      });
+    } catch (error) {
+      console.error('Error reordering phases:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to reorder phases',
+        color: 'red'
+      });
+    }
+  };
+
+  const handleReorderSteps = async (reorderedSteps: PhaseStep[]) => {
+    try {
+      const currentPhase = breadcrumbs.find(b => b.type === 'phase');
+      if (!currentPhase) return;
+
+      const stepOrders = reorderedSteps.map(step => ({
+        step_id: step.step_id,
+        step_order: step.step_order
+      }));
+
+      await phaseStepService.reorder(currentPhase.id, stepOrders);
+      setSteps(reorderedSteps);
+      
+      notifications.show({
+        title: 'Success',
+        message: 'Steps reordered successfully',
+        color: 'green'
+      });
+    } catch (error) {
+      console.error('Error reordering steps:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to reorder steps',
+        color: 'red'
+      });
+    }
+  };
+
+  const handleReorderTasks = async (reorderedTasks: StepTask[]) => {
+    try {
+      const currentStep = breadcrumbs.find(b => b.type === 'step');
+      if (!currentStep) return;
+
+      const taskOrders = reorderedTasks.map(task => ({
+        task_id: task.task_id,
+        task_order: task.task_order
+      }));
+
+      await stepTaskService.reorder(currentStep.id, taskOrders);
+      setTasks(reorderedTasks);
+      
+      notifications.show({
+        title: 'Success',
+        message: 'Tasks reordered successfully',
+        color: 'green'
+      });
+    } catch (error) {
+      console.error('Error reordering tasks:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to reorder tasks',
+        color: 'red'
+      });
+    }
+  };
+
   const handleModalClose = () => {
     setEditingTemplate(undefined);
     setEditingPhase(undefined);
     setEditingStep(undefined);
     setEditingTask(undefined);
+    setParentTaskId(undefined);
     closeTemplateModal();
     closePhaseModal();
     closeStepModal();
     closeTaskModal();
+  };
+
+  const handleCreateChildTask = (parentTaskId: string) => {
+    setParentTaskId(parentTaskId);
+    setEditingTask(undefined);
+    openTaskModal();
   };
 
   const getCurrentParentId = () => {
@@ -431,60 +524,13 @@ export default function TemplatesPage() {
             <Text c="dimmed">No phases found</Text>
           </Center>
         ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Order</Table.Th>
-                <Table.Th>Name</Table.Th>
-                <Table.Th>Description</Table.Th>
-                <Table.Th>Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {phases.map((phase) => (
-                <Table.Tr key={phase.phase_id}>
-                  <Table.Td>
-                    <Badge variant="light">{phase.phase_order}</Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text fw={500}>{phase.phase_name}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" c="dimmed" lineClamp={2}>
-                      {phase.description || 'No description'}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
-                      <ActionIcon 
-                        variant="light" 
-                        onClick={() => navigateTo('steps', phase)}
-                        title="View Steps"
-                      >
-                        <IconEye size={16} />
-                      </ActionIcon>
-                      <ActionIcon 
-                        variant="light" 
-                        color="blue"
-                        onClick={() => handleEdit(phase)}
-                        title="Edit Phase"
-                      >
-                        <IconEdit size={16} />
-                      </ActionIcon>
-                      <ActionIcon 
-                        variant="light" 
-                        color="red"
-                        onClick={() => handleDelete(phase)}
-                        title="Delete Phase"
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+          <DraggablePhasesList
+            phases={phases}
+            onReorder={handleReorderPhases}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onView={(phase) => navigateTo('steps', phase)}
+          />
         )}
       </Stack>
     </Card>
@@ -509,60 +555,13 @@ export default function TemplatesPage() {
             <Text c="dimmed">No steps found</Text>
           </Center>
         ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Order</Table.Th>
-                <Table.Th>Name</Table.Th>
-                <Table.Th>Description</Table.Th>
-                <Table.Th>Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {steps.map((step) => (
-                <Table.Tr key={step.step_id}>
-                  <Table.Td>
-                    <Badge variant="light">{step.step_order}</Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text fw={500}>{step.step_name}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" c="dimmed" lineClamp={2}>
-                      {step.description || 'No description'}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
-                      <ActionIcon 
-                        variant="light" 
-                        onClick={() => navigateTo('tasks', step)}
-                        title="View Tasks"
-                      >
-                        <IconEye size={16} />
-                      </ActionIcon>
-                      <ActionIcon 
-                        variant="light" 
-                        color="blue"
-                        onClick={() => handleEdit(step)}
-                        title="Edit Step"
-                      >
-                        <IconEdit size={16} />
-                      </ActionIcon>
-                      <ActionIcon 
-                        variant="light" 
-                        color="red"
-                        onClick={() => handleDelete(step)}
-                        title="Delete Step"
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+          <DraggableStepsList
+            steps={steps}
+            onReorder={handleReorderSteps}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onView={(step) => navigateTo('tasks', step)}
+          />
         )}
       </Stack>
     </Card>
@@ -587,69 +586,15 @@ export default function TemplatesPage() {
             <Text c="dimmed">No tasks found</Text>
           </Center>
         ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Order</Table.Th>
-                <Table.Th>Name</Table.Th>
-                <Table.Th>Description</Table.Th>
-                <Table.Th>Est. Hours</Table.Th>
-                <Table.Th>Assigned Role</Table.Th>
-                <Table.Th>Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {tasks.map((task) => (
-                <Table.Tr key={task.task_id}>
-                  <Table.Td>
-                    <Badge variant="light">{task.task_order}</Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text fw={500}>{task.task_name}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" c="dimmed" lineClamp={2}>
-                      {task.description || 'No description'}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">
-                      {task.estimated_hours ? `${task.estimated_hours}h` : '-'}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge 
-                      variant="light" 
-                      color={task.assigned_role_id ? 'blue' : 'gray'}
-                      size="sm"
-                    >
-                      {getRoleName(task.assigned_role_id)}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
-                      <ActionIcon 
-                        variant="light" 
-                        color="blue"
-                        onClick={() => handleEdit(task)}
-                        title="Edit Task"
-                      >
-                        <IconEdit size={16} />
-                      </ActionIcon>
-                      <ActionIcon 
-                        variant="light" 
-                        color="red"
-                        onClick={() => handleDelete(task)}
-                        title="Delete Task"
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+          <DraggableTasksList
+            tasks={tasks}
+            onReorder={handleReorderTasks}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onCreateChild={handleCreateChildTask}
+            getRoleName={getRoleName}
+            templateId={breadcrumbs.find(b => b.type === 'template')?.id || ''}
+          />
         )}
       </Stack>
     </Card>
@@ -693,7 +638,9 @@ export default function TemplatesPage() {
           opened={taskModalOpened}
           onClose={handleModalClose}
           stepId={getCurrentParentId()}
+          templateId={breadcrumbs.find(b => b.type === 'template')?.id || ''}
           task={editingTask}
+          parentTaskId={parentTaskId}
           onSuccess={loadData}
         />
 

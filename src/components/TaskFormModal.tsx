@@ -11,14 +11,17 @@ import {
   Select
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import type { StepTask, CreateStepTaskRequest, UpdateStepTaskRequest, TemplateRole } from '../types/templates';
+import type { StepTask, CreateStepTaskRequest, UpdateStepTaskRequest, TemplateRole, TaskCategoryType, ChecklistItem } from '../types/templates';
 import { stepTaskService, templateRoleService } from '../services/projectTemplateService';
+import ChecklistManager from './ChecklistManager';
 
 interface TaskFormModalProps {
   opened: boolean;
   onClose: () => void;
   stepId: string;
+  templateId: string; // Add templateId for cross-template search
   task?: StepTask;
+  parentTaskId?: string; // For creating child tasks
   onSuccess: () => void;
 }
 
@@ -26,22 +29,68 @@ export default function TaskFormModal({
   opened, 
   onClose, 
   stepId,
-  task, 
+  templateId,
+  task,
+  parentTaskId,
   onSuccess 
 }: TaskFormModalProps) {
   const [formData, setFormData] = useState({
     task_name: '',
     description: '',
-    task_order: 1,
     estimated_hours: undefined as number | undefined,
-    assigned_role_id: undefined as string | undefined
+    assigned_role_id: undefined as string | undefined,
+    parent_task_id: undefined as string | undefined,
+    category: undefined as TaskCategoryType | undefined,
+    checklist_items: [] as ChecklistItem[]
   });
   const [loading, setLoading] = useState(false);
   const [roles, setRoles] = useState<TemplateRole[]>([]);
   const [loadingRoles, setLoadingRoles] = useState(true);
   const [roleSearch, setRoleSearch] = useState('');
+  const [availableParentTasks, setAvailableParentTasks] = useState<(StepTask & { step_name?: string; phase_name?: string })[]>([]);
+  const [loadingParentTasks, setLoadingParentTasks] = useState(true);
 
   const isEditing = !!task;
+
+  // Load available parent tasks
+  useEffect(() => {
+    const loadParentTasks = async () => {
+      try {
+        setLoadingParentTasks(true);
+        
+        // Get tasks from current step
+        const currentStepTasks = await stepTaskService.getAvailableParentTasks(
+          stepId, 
+          task?.task_id // Exclude current task when editing
+        );
+        
+        // Get tasks from previous steps and phases
+        const crossTemplateTasks = await stepTaskService.getAvailableParentTasksFromTemplate(
+          templateId,
+          stepId,
+          task?.task_id // Exclude current task when editing
+        );
+        
+        // Combine both lists
+        const allParentTasks = [
+          // Current step tasks (no additional info needed)
+          ...currentStepTasks.map(task => ({ ...task, step_name: undefined, phase_name: undefined })),
+          // Cross-template tasks (with step and phase info)
+          ...crossTemplateTasks
+        ];
+        
+        setAvailableParentTasks(allParentTasks);
+      } catch (error) {
+        console.error('Error loading parent tasks:', error);
+      } finally {
+        setLoadingParentTasks(false);
+      }
+    };
+
+    if (opened) {
+      loadParentTasks();
+    }
+  }, [opened, stepId, templateId, task?.task_id]);
 
   // Load roles with search debouncing
   useEffect(() => {
@@ -71,20 +120,24 @@ export default function TaskFormModal({
       setFormData({
         task_name: task.task_name,
         description: task.description || '',
-        task_order: task.task_order,
         estimated_hours: task.estimated_hours || undefined,
-        assigned_role_id: task.assigned_role_id || undefined
+        assigned_role_id: task.assigned_role_id || undefined,
+        parent_task_id: task.parent_task_id || undefined,
+        category: task.category || undefined,
+        checklist_items: task.checklist_items || []
       });
     } else {
       setFormData({
         task_name: '',
         description: '',
-        task_order: 1,
         estimated_hours: undefined,
-        assigned_role_id: undefined
+        assigned_role_id: undefined,
+        parent_task_id: parentTaskId || undefined,
+        category: undefined,
+        checklist_items: []
       });
     }
-  }, [task]);
+  }, [task, parentTaskId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,9 +158,11 @@ export default function TaskFormModal({
         const updateData: UpdateStepTaskRequest = {
           task_name: formData.task_name.trim(),
           description: formData.description.trim() || undefined,
-          task_order: formData.task_order,
           estimated_hours: formData.estimated_hours || undefined,
-          assigned_role_id: formData.assigned_role_id || undefined
+          assigned_role_id: formData.assigned_role_id || undefined,
+          parent_task_id: formData.parent_task_id || undefined,
+          category: formData.category || undefined,
+          checklist_items: formData.checklist_items
         };
         
         await stepTaskService.update(task.task_id, updateData);
@@ -121,9 +176,11 @@ export default function TaskFormModal({
           step_id: stepId,
           task_name: formData.task_name.trim(),
           description: formData.description.trim() || undefined,
-          task_order: formData.task_order,
           estimated_hours: formData.estimated_hours || undefined,
-          assigned_role_id: formData.assigned_role_id || undefined
+          assigned_role_id: formData.assigned_role_id || undefined,
+          parent_task_id: formData.parent_task_id || undefined,
+          category: formData.category || undefined,
+          checklist_items: formData.checklist_items
         };
         
         await stepTaskService.create(createData);
@@ -153,6 +210,28 @@ export default function TaskFormModal({
     value: role.role_id,
     label: `${role.role_name} (${role.department_name || 'No Department'})`
   }));
+
+  // Create parent task options for Select component
+  const parentTaskOptions = availableParentTasks.map(parentTask => {
+    let label = parentTask.task_name;
+    
+    // Add step and phase info for cross-template tasks
+    if (parentTask.step_name && parentTask.phase_name) {
+      label = `${parentTask.task_name} (${parentTask.phase_name} → ${parentTask.step_name})`;
+    }
+    
+    return {
+      value: parentTask.task_id,
+      label
+    };
+  });
+
+  // Task category options
+  const categoryOptions = [
+    { value: 'monitor', label: 'Monitor - Oversight and tracking tasks' },
+    { value: 'coordinate', label: 'Coordinate - Management and communication tasks' },
+    { value: 'execute', label: 'Execute - Action and implementation tasks' }
+  ];
 
   return (
     <Modal 
@@ -192,17 +271,7 @@ export default function TaskFormModal({
             maxLength={1000}
           />
 
-          <NumberInput
-            label="Task Order"
-            placeholder="Enter task order"
-            value={formData.task_order}
-            onChange={(value) => setFormData(prev => ({ 
-              ...prev, 
-              task_order: value || 1
-            }))}
-            min={1}
-            required
-          />
+
 
           <NumberInput
             label="Estimated Hours"
@@ -214,6 +283,34 @@ export default function TaskFormModal({
             }))}
             min={0}
             decimalScale={1}
+          />
+
+          <Select
+            label="Parent Task"
+            placeholder="Select a parent task (optional)"
+            value={formData.parent_task_id || null}
+            onChange={(value) => setFormData(prev => ({ 
+              ...prev, 
+              parent_task_id: value || undefined
+            }))}
+            data={parentTaskOptions}
+            searchable
+            clearable
+            disabled={loadingParentTasks}
+            description="Make this task a child of another task"
+          />
+
+          <Select
+            label="Category"
+            placeholder="Select task category (optional)"
+            value={formData.category || null}
+            onChange={(value) => setFormData(prev => ({ 
+              ...prev, 
+              category: value as TaskCategoryType || undefined
+            }))}
+            data={categoryOptions}
+            clearable
+            description="Categorize the type of task"
           />
 
           <Select
@@ -232,6 +329,14 @@ export default function TaskFormModal({
             searchValue={roleSearch}
             description="Assign this task to a specific role/department"
             limit={50}
+          />
+
+          <ChecklistManager
+            items={formData.checklist_items}
+            onChange={(items) => setFormData(prev => ({ 
+              ...prev, 
+              checklist_items: items 
+            }))}
           />
 
           <Group justify="flex-end">

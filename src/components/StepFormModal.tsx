@@ -6,8 +6,7 @@ import {
   Button,
   Group,
   Stack,
-  Title,
-  NumberInput
+  Title
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import type { PhaseStep, CreatePhaseStepRequest, UpdatePhaseStepRequest } from '../types/templates';
@@ -30,8 +29,7 @@ export default function StepFormModal({
 }: StepFormModalProps) {
   const [formData, setFormData] = useState({
     step_name: '',
-    description: '',
-    step_order: 1
+    description: ''
   });
   const [loading, setLoading] = useState(false);
 
@@ -41,14 +39,12 @@ export default function StepFormModal({
     if (step) {
       setFormData({
         step_name: step.step_name,
-        description: step.description || '',
-        step_order: step.step_order
+        description: step.description || ''
       });
     } else {
       setFormData({
         step_name: '',
-        description: '',
-        step_order: 1
+        description: ''
       });
     }
   }, [step]);
@@ -71,8 +67,7 @@ export default function StepFormModal({
       if (isEditing && step) {
         const updateData: UpdatePhaseStepRequest = {
           step_name: formData.step_name.trim(),
-          description: formData.description.trim() || undefined,
-          step_order: formData.step_order
+          description: formData.description.trim() || undefined
         };
         
         await phaseStepService.update(step.step_id, updateData);
@@ -85,8 +80,7 @@ export default function StepFormModal({
         const createData: CreatePhaseStepRequest = {
           phase_id: phaseId,
           step_name: formData.step_name.trim(),
-          description: formData.description.trim() || undefined,
-          step_order: formData.step_order
+          description: formData.description.trim() || undefined
         };
         
         await phaseStepService.create(createData);
@@ -149,17 +143,7 @@ export default function StepFormModal({
             maxLength={1000}
           />
 
-          <NumberInput
-            label="Step Order"
-            placeholder="Enter step order"
-            value={formData.step_order}
-            onChange={(value) => setFormData(prev => ({ 
-              ...prev, 
-              step_order: value || 1
-            }))}
-            min={1}
-            required
-          />
+
 
           <Group justify="flex-end">
             <Button variant="outline" onClick={onClose}>

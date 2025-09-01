@@ -300,6 +300,28 @@ export const templatePhaseService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Use a transaction to avoid unique constraint violations
+    // First, set all orders to negative values to avoid conflicts
+    const tempUpdates = phaseOrders.map(({ phase_id }, index) => ({
+      phase_id,
+      temp_order: -(index + 1000) // Use negative numbers to avoid conflicts
+    }));
+
+    // Step 1: Set temporary negative orders
+    for (const { phase_id, temp_order } of tempUpdates) {
+      const { error } = await supabase
+        .from('template_phases')
+        .update({
+          phase_order: temp_order,
+          updated_by: user.email || user.id
+        })
+        .eq('phase_id', phase_id)
+        .eq('template_id', templateId);
+
+      if (error) throw error;
+    }
+
+    // Step 2: Set final positive orders
     for (const { phase_id, phase_order } of phaseOrders) {
       const { error } = await supabase
         .from('template_phases')
@@ -462,6 +484,28 @@ export const phaseStepService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Use a transaction to avoid unique constraint violations
+    // First, set all orders to negative values to avoid conflicts
+    const tempUpdates = stepOrders.map(({ step_id }, index) => ({
+      step_id,
+      temp_order: -(index + 1000) // Use negative numbers to avoid conflicts
+    }));
+
+    // Step 1: Set temporary negative orders
+    for (const { step_id, temp_order } of tempUpdates) {
+      const { error } = await supabase
+        .from('phase_steps')
+        .update({
+          step_order: temp_order,
+          updated_by: user.email || user.id
+        })
+        .eq('step_id', step_id)
+        .eq('phase_id', phaseId);
+
+      if (error) throw error;
+    }
+
+    // Step 2: Set final positive orders
     for (const { step_id, step_order } of stepOrders) {
       const { error } = await supabase
         .from('phase_steps')
@@ -513,6 +557,18 @@ export const stepTaskService = {
 
     if (filters.assigned_role_id) {
       query = query.eq('assigned_role_id', filters.assigned_role_id);
+    }
+
+    if (filters.parent_task_id !== undefined) {
+      if (filters.parent_task_id === null || filters.parent_task_id === '') {
+        query = query.is('parent_task_id', null);
+      } else {
+        query = query.eq('parent_task_id', filters.parent_task_id);
+      }
+    }
+
+    if (filters.category) {
+      query = query.eq('category', filters.category);
     }
 
     if (filters.is_archived !== undefined) {
@@ -628,6 +684,28 @@ export const stepTaskService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Use a transaction to avoid unique constraint violations
+    // First, set all orders to negative values to avoid conflicts
+    const tempUpdates = taskOrders.map(({ task_id }, index) => ({
+      task_id,
+      temp_order: -(index + 1000) // Use negative numbers to avoid conflicts
+    }));
+
+    // Step 1: Set temporary negative orders
+    for (const { task_id, temp_order } of tempUpdates) {
+      const { error } = await supabase
+        .from('step_tasks')
+        .update({
+          task_order: temp_order,
+          updated_by: user.email || user.id
+        })
+        .eq('task_id', task_id)
+        .eq('step_id', stepId);
+
+      if (error) throw error;
+    }
+
+    // Step 2: Set final positive orders
     for (const { task_id, task_order } of taskOrders) {
       const { error } = await supabase
         .from('step_tasks')
@@ -640,6 +718,141 @@ export const stepTaskService = {
 
       if (error) throw error;
     }
+  },
+
+  // Get available parent tasks for a step (excluding the task itself and its descendants)
+  async getAvailableParentTasks(stepId: string, excludeTaskId?: string): Promise<StepTask[]> {
+    let query = supabase
+      .from('step_tasks')
+      .select('*')
+      .eq('step_id', stepId)
+      .eq('is_archived', false);
+
+    if (excludeTaskId) {
+      query = query.neq('task_id', excludeTaskId);
+    }
+
+    const { data, error } = await query.order('task_order');
+
+    if (error) throw error;
+
+    // If we're excluding a task, also exclude its descendants to prevent circular references
+    if (excludeTaskId && data) {
+      const descendants = await this.getTaskDescendants(excludeTaskId);
+      const descendantIds = descendants.map(d => d.task_id);
+      return data.filter(task => !descendantIds.includes(task.task_id));
+    }
+
+    return data || [];
+  },
+
+  // Get available parent tasks from across the entire template (all previous steps and phases)
+  async getAvailableParentTasksFromTemplate(templateId: string, currentStepId: string, excludeTaskId?: string): Promise<(StepTask & { step_name: string; phase_name: string; phase_order: number; step_order: number })[]> {
+    // Get all tasks from previous steps and phases in the template
+    const { data, error } = await supabase
+      .from('step_tasks')
+      .select(`
+        *,
+        phase_steps!inner(
+          step_name,
+          step_order,
+          phase_id,
+          template_phases!inner(
+            phase_name,
+            phase_order,
+            template_id
+          )
+        )
+      `)
+      .eq('phase_steps.template_phases.template_id', templateId)
+      .eq('is_archived', false)
+      .neq('step_id', currentStepId); // Exclude tasks from current step
+
+    if (error) throw error;
+
+    if (!data) return [];
+
+    // Flatten and format the data
+    const formattedTasks = data.map(task => ({
+      ...task,
+      step_name: task.phase_steps.step_name,
+      phase_name: task.phase_steps.template_phases.phase_name,
+      phase_order: task.phase_steps.template_phases.phase_order,
+      step_order: task.phase_steps.step_order
+    }));
+
+    // Filter out excluded task and its descendants if specified
+    let filteredTasks = formattedTasks;
+    if (excludeTaskId) {
+      const descendants = await this.getTaskDescendants(excludeTaskId);
+      const descendantIds = descendants.map(d => d.task_id);
+      filteredTasks = formattedTasks.filter(task => 
+        task.task_id !== excludeTaskId && !descendantIds.includes(task.task_id)
+      );
+    }
+
+    // Sort by phase order, then step order, then task order
+    return filteredTasks.sort((a, b) => {
+      if (a.phase_order !== b.phase_order) return a.phase_order - b.phase_order;
+      if (a.step_order !== b.step_order) return a.step_order - b.step_order;
+      return a.task_order - b.task_order;
+    });
+  },
+
+  // Get task descendants (children, grandchildren, etc.)
+  async getTaskDescendants(taskId: string): Promise<StepTask[]> {
+    const { data, error } = await supabase
+      .rpc('get_task_descendants', { task_uuid: taskId });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Get task ancestors (parent, grandparent, etc.)
+  async getTaskAncestors(taskId: string): Promise<StepTask[]> {
+    const { data, error } = await supabase
+      .rpc('get_task_ancestors', { task_uuid: taskId });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Get tasks organized by hierarchy (root tasks with their children)
+  async getTasksWithHierarchy(stepId: string): Promise<StepTask[]> {
+    const { data, error } = await supabase
+      .from('step_tasks')
+      .select('*')
+      .eq('step_id', stepId)
+      .eq('is_archived', false)
+      .order('task_order');
+
+    if (error) throw error;
+
+    // Organize tasks by hierarchy
+    const tasks = data || [];
+    const rootTasks: StepTask[] = [];
+    const taskMap = new Map<string, StepTask & { children?: StepTask[] }>();
+
+    // Create a map of all tasks
+    tasks.forEach(task => {
+      taskMap.set(task.task_id, { ...task, children: [] });
+    });
+
+    // Build hierarchy
+    tasks.forEach(task => {
+      const taskWithChildren = taskMap.get(task.task_id)!;
+      if (task.parent_task_id) {
+        const parent = taskMap.get(task.parent_task_id);
+        if (parent) {
+          parent.children = parent.children || [];
+          parent.children.push(taskWithChildren);
+        }
+      } else {
+        rootTasks.push(taskWithChildren);
+      }
+    });
+
+    return rootTasks;
   }
 };
 
@@ -673,7 +886,7 @@ export const templateRoleService = {
     return (data || []).map(role => ({
       role_id: role.role_id,
       role_name: role.role_name,
-      department_name: role.departments?.department_name,
+      department_name: role.departments?.[0]?.department_name,
       is_archived: role.is_archived
     }));
   },
@@ -699,7 +912,7 @@ export const templateRoleService = {
     return {
       role_id: data.role_id,
       role_name: data.role_name,
-      department_name: data.departments?.department_name,
+      department_name: data.departments?.[0]?.department_name,
       is_archived: data.is_archived
     };
   }
